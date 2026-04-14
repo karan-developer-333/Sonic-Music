@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { NextRequest, NextResponse } from 'next/server';
 import { cache } from '@/cache/redis.cache';
 import { getTrendingGaana } from '@/services/gaana.service';
