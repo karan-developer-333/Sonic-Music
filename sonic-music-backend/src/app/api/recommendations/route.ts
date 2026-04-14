@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    logger.info('Fetching recommendations for genres:', genres);
+    logger.info('Fetching recommendations for genres: ' + genres.join(', '));
 
     // Search for songs in each genre
     const searchPromises = genres.flatMap(genre => [
