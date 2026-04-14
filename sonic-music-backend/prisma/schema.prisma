@@ -1,0 +1,94 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String?
+  avatarUrl String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  playlists    Playlist[]
+  savedAlbums  SavedAlbum[]
+  history      ListeningHistory[]
+
+  @@map("users")
+}
+
+model Playlist {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  coverUrl    String?
+  isPublic    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  songs PlaylistSong[]
+
+  @@map("playlists")
+}
+
+model PlaylistSong {
+  id        String   @id @default(cuid())
+  addedAt   DateTime @default(now())
+
+  playlistId String
+  playlist   Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+
+  songId    String
+  songTitle String
+  artist    String
+  coverUrl  String?
+  streamUrl String?
+  source    String   @default("gaana")
+  duration  Int      @default(0)
+
+  @@unique([playlistId, songId])
+  @@map("playlist_songs")
+}
+
+model SavedAlbum {
+  id        String   @id @default(cuid())
+  savedAt   DateTime @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  albumId    String
+  title      String
+  artist     String
+  coverUrl   String?
+  source     String   @default("gaana")
+
+  @@unique([userId, albumId])
+  @@map("saved_albums")
+}
+
+model ListeningHistory {
+  id        String   @id @default(cuid())
+  playedAt   DateTime @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  songId    String
+  songTitle String
+  artist    String
+  coverUrl  String?
+  source    String   @default("gaana")
+  duration  Int      @default(0)
+
+  @@index([userId, playedAt])
+  @@map("listening_history")
+}

@@ -1,9 +1,12 @@
 import axios from 'axios';
 import { logger } from '../utils/logger';
-import { withTimeout } from '../utils/timeout';
+import { withTimeout, withRetry } from '../utils/retry';
+import { withCircuitBreaker } from '../utils/circuitBreaker';
 import type { NormalizedSong, ServiceResponse } from '../types/music';
 
 const GAANAPY_URL = process.env.GAANAPY_URL || 'http://127.0.0.1:8000';
+const CIRCUIT_BREAKER_KEY = 'gaana';
+const MAX_RETRIES = 2;
 
 interface GaanaTrack {
   seokey: string;
@@ -59,10 +62,11 @@ function normalizeTrack(track: GaanaTrack): NormalizedSong {
 }
 
 export async function searchGaana(query: string, limit = 20): Promise<ServiceResponse<NormalizedSong[]>> {
-  try {
+  const fetchFn = async () => {
     const response = await withTimeout(
       axios.get(`${GAANAPY_URL}/songs/search/`, {
         params: { query, limit },
+        timeout: Number(process.env.API_TIMEOUT) || 7000,
       }),
       Number(process.env.API_TIMEOUT) || 7000,
       'GaanaPy search timeout'
@@ -72,13 +76,21 @@ export async function searchGaana(query: string, limit = 20): Promise<ServiceRes
 
     if (!tracks.length) {
       logger.warn('No songs found from GaanaPy', { query });
-      return { data: [], source: 'gaana' };
+      return { data: [], source: 'gaana' as const };
     }
 
     return {
       data: tracks.slice(0, limit).map(normalizeTrack),
-      source: 'gaana',
+      source: 'gaana' as const,
     };
+  };
+
+  try {
+    return await withCircuitBreaker(
+      `${CIRCUIT_BREAKER_KEY}:search`,
+      () => withRetry(fetchFn, { maxRetries: MAX_RETRIES }),
+      () => ({ data: [], source: 'gaana' as const, error: 'Service temporarily unavailable' })
+    );
   } catch (err) {
     logger.error('GaanaPy search error', {
       error: (err as Error).message,
@@ -88,10 +100,11 @@ export async function searchGaana(query: string, limit = 20): Promise<ServiceRes
 }
 
 export async function getTrendingGaana(language = 'Hindi', limit = 20): Promise<ServiceResponse<NormalizedSong[]>> {
-  try {
+  const fetchFn = async () => {
     const response = await withTimeout(
       axios.get(`${GAANAPY_URL}/trending`, {
         params: { language, limit },
+        timeout: Number(process.env.API_TIMEOUT) || 7000,
       }),
       Number(process.env.API_TIMEOUT) || 7000,
       'GaanaPy trending timeout'
@@ -101,13 +114,20 @@ export async function getTrendingGaana(language = 'Hindi', limit = 20): Promise<
 
     if (!tracks.length) {
       logger.warn('No trending songs found from GaanaPy', { language });
-      return { data: [], source: 'gaana' };
+      return { data: [], source: 'gaana' as const };
     }
 
     return {
       data: tracks.slice(0, limit).map(normalizeTrack),
-      source: 'gaana',
+      source: 'gaana' as const,
     };
+  };
+
+  try {
+    return await withCircuitBreaker(
+      `${CIRCUIT_BREAKER_KEY}:trending`,
+      () => withRetry(fetchFn, { maxRetries: MAX_RETRIES })
+    );
   } catch (err) {
     logger.error('GaanaPy trending error', {
       error: (err as Error).message,
@@ -117,10 +137,11 @@ export async function getTrendingGaana(language = 'Hindi', limit = 20): Promise<
 }
 
 export async function getNewReleasesGaana(language = 'Hindi', limit = 20): Promise<ServiceResponse<NormalizedSong[]>> {
-  try {
+  const fetchFn = async () => {
     const response = await withTimeout(
       axios.get(`${GAANAPY_URL}/newreleases`, {
         params: { language, limit },
+        timeout: Number(process.env.API_TIMEOUT) || 7000,
       }),
       Number(process.env.API_TIMEOUT) || 7000,
       'GaanaPy new releases timeout'
@@ -130,13 +151,20 @@ export async function getNewReleasesGaana(language = 'Hindi', limit = 20): Promi
 
     if (!tracks.length) {
       logger.warn('No new releases found from GaanaPy', { language });
-      return { data: [], source: 'gaana' };
+      return { data: [], source: 'gaana' as const };
     }
 
     return {
       data: tracks.slice(0, limit).map(normalizeTrack),
-      source: 'gaana',
+      source: 'gaana' as const,
     };
+  };
+
+  try {
+    return await withCircuitBreaker(
+      `${CIRCUIT_BREAKER_KEY}:newreleases`,
+      () => withRetry(fetchFn, { maxRetries: MAX_RETRIES })
+    );
   } catch (err) {
     logger.error('GaanaPy new releases error', {
       error: (err as Error).message,
@@ -146,10 +174,11 @@ export async function getNewReleasesGaana(language = 'Hindi', limit = 20): Promi
 }
 
 export async function getChartsGaana(limit = 10): Promise<ServiceResponse<any>> {
-  try {
+  const fetchFn = async () => {
     const response = await withTimeout(
       axios.get(`${GAANAPY_URL}/charts`, {
         params: { limit },
+        timeout: Number(process.env.API_TIMEOUT) || 7000,
       }),
       Number(process.env.API_TIMEOUT) || 7000,
       'GaanaPy charts timeout'
@@ -157,8 +186,15 @@ export async function getChartsGaana(limit = 10): Promise<ServiceResponse<any>> 
 
     return {
       data: response.data,
-      source: 'gaana',
+      source: 'gaana' as const,
     };
+  };
+
+  try {
+    return await withCircuitBreaker(
+      `${CIRCUIT_BREAKER_KEY}:charts`,
+      () => withRetry(fetchFn, { maxRetries: MAX_RETRIES })
+    );
   } catch (err) {
     logger.error('GaanaPy charts error', {
       error: (err as Error).message,
@@ -168,10 +204,11 @@ export async function getChartsGaana(limit = 10): Promise<ServiceResponse<any>> 
 }
 
 export async function getSongBySeokey(seokey: string): Promise<ServiceResponse<NormalizedSong>> {
-  try {
+  const fetchFn = async () => {
     const response = await withTimeout(
       axios.get(`${GAANAPY_URL}/songs/info/`, {
         params: { seokey },
+        timeout: Number(process.env.API_TIMEOUT) || 7000,
       }),
       Number(process.env.API_TIMEOUT) || 7000,
       'GaanaPy song info timeout'
@@ -181,13 +218,20 @@ export async function getSongBySeokey(seokey: string): Promise<ServiceResponse<N
 
     if (!tracks.length) {
       logger.warn('Song not found in GaanaPy', { seokey });
-      return { error: 'Song not found', source: 'gaana' };
+      return { error: 'Song not found', source: 'gaana' as const };
     }
 
     return {
       data: normalizeTrack(tracks[0]),
-      source: 'gaana',
+      source: 'gaana' as const,
     };
+  };
+
+  try {
+    return await withCircuitBreaker(
+      `${CIRCUIT_BREAKER_KEY}:song:${seokey}`,
+      () => withRetry(fetchFn, { maxRetries: MAX_RETRIES })
+    );
   } catch (err) {
     logger.error('GaanaPy song info error', {
       error: (err as Error).message,
@@ -212,4 +256,128 @@ export async function getStreamUrlBySeokey(seokey: string): Promise<ServiceRespo
     data: song.data.streamUrl,
     source: 'gaana',
   };
+}
+
+interface GaanaAlbum {
+  album_id: string;
+  album_seokey: string;
+  title: string;
+  artists: string;
+  artist_seokeys: string;
+  artist_ids: string;
+  artist_image: string;
+  duration?: string;
+  release_date?: string;
+  genre?: string;
+  language?: string;
+  label?: string;
+  play_count?: string;
+  favorite_count?: number;
+  songs_count?: string;
+  album_url?: string;
+  images: {
+    urls: {
+      large_artwork: string;
+      medium_artwork: string;
+      small_artwork: string;
+    };
+  };
+}
+
+function normalizeAlbum(album: GaanaAlbum): any {
+  const artwork = album.images?.urls?.medium_artwork || album.images?.urls?.small_artwork || '';
+  return {
+    id: `gn_album_${album.album_id}`,
+    title: album.title || 'Unknown Album',
+    artist: album.artists || 'Various Artists',
+    coverUrl: artwork,
+    artwork,
+    source: 'gaana',
+    type: 'album',
+    releaseDate: album.release_date,
+    genre: album.genre,
+    language: album.language,
+    songCount: parseInt(album.songs_count || '0', 10),
+  };
+}
+
+export async function getAlbumsGaana(page = 1, limit = 20): Promise<ServiceResponse<any[]>> {
+  const fetchFn = async () => {
+    const response = await withTimeout(
+      axios.get(`${GAANAPY_URL}/albums`, {
+        params: { page, limit },
+        timeout: Number(process.env.API_TIMEOUT) || 7000,
+      }),
+      Number(process.env.API_TIMEOUT) || 7000,
+      'GaanaPy albums timeout'
+    );
+
+    const albums: GaanaAlbum[] = Array.isArray(response.data) 
+      ? response.data 
+      : response.data.albums || response.data.results || [];
+
+    if (!albums.length) {
+      logger.warn('No albums found from GaanaPy');
+      return { data: [], source: 'gaana' as const };
+    }
+
+    return {
+      data: albums.slice(0, limit).map(normalizeAlbum),
+      source: 'gaana' as const,
+    };
+  };
+
+  try {
+    return await withCircuitBreaker(
+      `${CIRCUIT_BREAKER_KEY}:albums`,
+      () => withRetry(fetchFn, { maxRetries: MAX_RETRIES })
+    );
+  } catch (err) {
+    logger.error('GaanaPy albums error', {
+      error: (err as Error).message,
+    });
+    return { error: 'Failed to fetch albums from Gaana', source: 'gaana' };
+  }
+}
+
+export async function getAlbumBySeokey(seokey: string): Promise<ServiceResponse<any>> {
+  const fetchFn = async () => {
+    const response = await withTimeout(
+      axios.get(`${GAANAPY_URL}/albums/info/`, {
+        params: { seokey },
+        timeout: Number(process.env.API_TIMEOUT) || 7000,
+      }),
+      Number(process.env.API_TIMEOUT) || 7000,
+      'GaanaPy album info timeout'
+    );
+
+    const album: GaanaAlbum = response.data.album || response.data;
+    const songs: GaanaTrack[] = response.data.songs || [];
+
+    if (!album.album_id) {
+      logger.warn('Album not found in GaanaPy', { seokey });
+      return { error: 'Album not found', source: 'gaana' as const };
+    }
+
+    const normalizedAlbum = normalizeAlbum(album);
+    normalizedAlbum.tracks = songs.map(normalizeTrack);
+
+    return {
+      data: normalizedAlbum,
+      source: 'gaana' as const,
+    };
+  };
+
+  try {
+    return await withCircuitBreaker(
+      `${CIRCUIT_BREAKER_KEY}:album:${seokey}`,
+      () => withRetry(fetchFn, { maxRetries: MAX_RETRIES })
+    );
+  } catch (err) {
+    logger.error('GaanaPy album info error', {
+      error: (err as Error).message,
+      seokey,
+    });
+    return { error: 'Failed to get album from Gaana', source: 'gaana' };
+  }
 }
