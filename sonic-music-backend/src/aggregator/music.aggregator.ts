@@ -1,4 +1,4 @@
-import type { NormalizedSong, MusicSource } from '../types/music';
+import type { NormalizedSong } from '../types/music';
 import { logger } from '../utils/logger';
 
 function createSongHash(song: NormalizedSong): string {
@@ -48,30 +48,15 @@ export function rankResults(songs: NormalizedSong[], query: string): NormalizedS
   return scored.map((s) => s.song);
 }
 
-export function prioritizeSources(songs: NormalizedSong[]): NormalizedSong[] {
-  const priority: Record<MusicSource, number> = {
-    saavn: 1,
-    spotify: 2,
-    jamendo: 3,
-  };
-
-  return [...songs].sort((a, b) => {
-    const pA = priority[a.source] || 99;
-    const pB = priority[b.source] || 99;
-    return pA - pB;
-  });
-}
-
 export function aggregateResults(
   results: NormalizedSong[],
   query?: string
 ): NormalizedSong[] {
-  const combined = results;
-  const deduped = deduplicateSongs(combined);
+  const deduped = deduplicateSongs(results);
   
   if (query) {
     return rankResults(deduped, query);
   }
   
-  return prioritizeSources(deduped);
+  return deduped;
 }

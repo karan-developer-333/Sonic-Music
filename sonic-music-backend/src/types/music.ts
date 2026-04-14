@@ -1,4 +1,4 @@
-export type MusicSource = 'spotify' | 'jamendo' | 'saavn';
+export type MusicSource = 'gaana';
 
 export interface NormalizedSong {
   id: string;

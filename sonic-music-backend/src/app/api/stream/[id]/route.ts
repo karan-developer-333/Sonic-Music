@@ -1,21 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { getSpotifyStreamUrl } from '@/services/spotify.service';
-import { getJamendoStreamUrl } from '@/services/jamendo.service';
-import { getMockStreamUrl } from '@/services/mock.service';
+import { getSongBySeokey } from '@/services/gaana.service';
 import { rateLimit } from '@/middleware/ratelimit.middleware';
 import { errorHandler, validationError, notFoundError } from '@/middleware/error.middleware';
 import { logger } from '@/utils/logger';
 import type { StreamResponse } from '@/types/music';
 
 const idSchema = z.object({
-  id: z.string().regex(/^(sp|jm)_[\w-]+$/, 'Invalid song ID format'),
+  id: z.string().regex(/^gn_[\w-]+$/, 'Invalid song ID format'),
 });
-
-function getSourceFromId(id: string): 'spotify' | 'jamendo' {
-  if (id.startsWith('sp_')) return 'spotify';
-  return 'jamendo';
-}
 
 export async function GET(
   request: NextRequest,
@@ -28,33 +21,26 @@ export async function GET(
     const { id } = await params;
 
     const validated = idSchema.parse({ id });
-    const source = getSourceFromId(validated.id);
+    const seokey = validated.id.replace('gn_', '');
 
-    logger.info('Getting stream URL', { id: validated.id, source });
+    logger.info('Getting stream URL from GaanaPy', { id: validated.id, seokey });
 
-    let result: StreamResponse | null = null;
+    const result = await getSongBySeokey(seokey);
 
-    if (source === 'spotify') {
-      const stream = await getSpotifyStreamUrl(validated.id);
-      if (stream.data) result = { streamUrl: stream.data, source: 'spotify' };
-    } else {
-      const stream = await getJamendoStreamUrl(validated.id);
-      if (stream.data) result = { streamUrl: stream.data, source: 'jamendo' };
-    }
-
-    if (!result) {
-      logger.warn('External APIs failed, trying mock stream', { id: validated.id });
-      const mockStream = getMockStreamUrl(validated.id);
-      if (mockStream) {
-        result = { streamUrl: mockStream, source };
-      }
-    }
-
-    if (!result) {
+    if (result.error || !result.data) {
       return notFoundError('Stream');
     }
 
-    return NextResponse.json(result);
+    if (!result.data.streamUrl) {
+      return notFoundError('Stream URL not available');
+    }
+
+    const response: StreamResponse = {
+      streamUrl: result.data.streamUrl,
+      source: 'gaana',
+    };
+
+    return NextResponse.json(response);
   } catch (error) {
     if (error instanceof z.ZodError) {
       return validationError(error.errors[0].message);

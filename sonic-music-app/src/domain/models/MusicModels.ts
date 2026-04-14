@@ -6,7 +6,7 @@ export interface Song {
   audioUrl: string;
   duration: number;
   categoryId: string;
-  source?: 'spotify' | 'jamendo';
+  source?: 'gaana';
 }
 
 export interface Category {

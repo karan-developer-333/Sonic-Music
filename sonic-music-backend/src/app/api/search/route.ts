@@ -1,14 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { cache } from '@/cache/redis.cache';
-import { searchSpotify } from '@/services/spotify.service';
-import { searchJamendo } from '@/services/jamendo.service';
-import { searchMockSongs } from '@/services/mock.service';
-import { aggregateResults } from '@/aggregator/music.aggregator';
+import { searchGaana } from '@/services/gaana.service';
 import { rateLimit } from '@/middleware/ratelimit.middleware';
 import { errorHandler, validationError } from '@/middleware/error.middleware';
 import { logger } from '@/utils/logger';
-import type { SearchResponse, NormalizedSong } from '@/types/music';
+import type { SearchResponse } from '@/types/music';
 
 const searchSchema = z.object({
   q: z.string().min(1).max(100),
@@ -44,36 +41,16 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    logger.info('Searching across all services', { query: validated.q });
+    logger.info('Searching GaanaPy', { query: validated.q });
 
-    const [spotify, jamendo] = await Promise.allSettled([
-      searchSpotify(validated.q),
-      searchJamendo(validated.q),
-    ]);
+    const result = await searchGaana(validated.q, validated.limit);
 
-    const results: NormalizedSong[] = [];
-
-    if (spotify.status === 'fulfilled' && spotify.value.data) {
-      results.push(...spotify.value.data);
-    }
-    if (jamendo.status === 'fulfilled' && jamendo.value.data) {
-      results.push(...jamendo.value.data);
+    if (result.error || !result.data) {
+      logger.error('GaanaPy search failed', { error: result.error, query: validated.q });
+      return errorHandler(new Error(result.error || 'Failed to search'));
     }
 
-    if (results.length === 0) {
-      logger.warn('All external APIs failed, using mock search');
-      const mockResults = searchMockSongs(validated.q);
-      const response: SearchResponse = {
-        songs: mockResults.slice(0, validated.limit),
-        query: validated.q,
-        cached: false,
-        total: mockResults.length,
-      };
-      await cache.set(cacheKey, response, 5 * 60);
-      return NextResponse.json(response);
-    }
-
-    const songs = aggregateResults(results, validated.q).slice(0, validated.limit);
+    const songs = result.data;
 
     const response: SearchResponse = {
       songs,

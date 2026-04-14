@@ -1,14 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cache } from '@/cache/redis.cache';
-import { searchSpotify } from '@/services/spotify.service';
-import { searchJamendo } from '@/services/jamendo.service';
-import { aggregateResults } from '@/aggregator/music.aggregator';
+import { getTrendingGaana } from '@/services/gaana.service';
 import { rateLimit } from '@/middleware/ratelimit.middleware';
 import { errorHandler } from '@/middleware/error.middleware';
 import { logger } from '@/utils/logger';
-import type { NormalizedSong } from '@/types/music';
 
-const CACHE_TTL = 30 * 60; // 30 minutes
+const CACHE_KEY = 'recommendations:songs';
+const CACHE_TTL = 30 * 60;
 
 export async function GET(request: NextRequest) {
   try {
@@ -16,12 +14,12 @@ export async function GET(request: NextRequest) {
     if (rateLimitResult) return rateLimitResult;
 
     const { searchParams } = new URL(request.url);
-    const genres = searchParams.get('genres')?.split(',') || ['bollywood', 'indian', 'hindustani'];
     const limit = parseInt(searchParams.get('limit') || '10');
+    const language = searchParams.get('language') || 'Hindi';
 
-    const cacheKey = `recommendations:${genres.join(',')}:${limit}`;
+    const cacheKey = `recommendations:${language}:${limit}`;
 
-    const cached = await cache.get<NormalizedSong[]>(cacheKey);
+    const cached = await cache.get<any>(cacheKey);
     if (cached) {
       logger.info('Returning cached recommendations');
       return NextResponse.json({
@@ -31,38 +29,20 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    logger.info('Fetching recommendations for genres: ' + genres.join(', '));
+    logger.info('Fetching recommendations from GaanaPy trending', { language, limit });
 
-    // Search for songs in each genre
-    const searchPromises = genres.flatMap(genre => [
-      searchSpotify(genre),
-      searchJamendo(genre),
-    ]);
+    const result = await getTrendingGaana(language, limit);
 
-    const searchResults = await Promise.allSettled(searchPromises);
-
-    const results: NormalizedSong[] = [];
-
-    searchResults.forEach(result => {
-      if (result.status === 'fulfilled' && result.value.data) {
-        results.push(...result.value.data);
-      }
-    });
-
-    if (results.length === 0) {
-      logger.warn('No recommendations found');
-      return NextResponse.json({
-        songs: [],
-        cached: false,
-        timestamp: Date.now(),
-      });
+    if (result.error || !result.data) {
+      logger.error('GaanaPy recommendations failed', { error: result.error });
+      return errorHandler(new Error(result.error || 'Failed to fetch recommendations'));
     }
 
-    const recommendations = aggregateResults(results).slice(0, limit);
+    const recommendations = result.data;
 
     await cache.set(cacheKey, recommendations, CACHE_TTL);
 
-    logger.info('Recommendations fetched and cached', { count: recommendations.length });
+    logger.info('Recommendations fetched from GaanaPy', { count: recommendations.length });
 
     return NextResponse.json({
       songs: recommendations,
