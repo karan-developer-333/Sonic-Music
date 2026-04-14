@@ -49,7 +49,7 @@
       ]
     ],
     "extra": {
-      "apiUrl": "https://f1rr36mb-3000.inc1.devtunnels.ms/api",
+      "apiUrl": "https://sonic-music-rose.vercel.app/api",
       "eas": {
         "projectId": "9e6f71f0-e9a3-4e4e-b197-bdf79562cf19"
       }
