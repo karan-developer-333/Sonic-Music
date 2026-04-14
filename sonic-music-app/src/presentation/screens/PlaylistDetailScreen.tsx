@@ -1,0 +1,303 @@
+import React, { useCallback, useMemo } from 'react';
+import {
+  StyleSheet,
+  Text,
+  View,
+  FlatList,
+  Image,
+  TouchableOpacity,
+  ScrollView,
+} from 'react-native';
+import { SafeContainer } from '../components/SafeContainer';
+import { SPACING, SIZES } from '../theme/theme';
+import { useAppSelector, useAppDispatch } from '../../application/store/hooks';
+import { playSong, toggleShuffle } from '../../application/store/slices/playerSlice';
+import { SongListItem } from '../components/SongListItem';
+import { MiniPlayer } from '../components/MiniPlayer';
+import { 
+  ChevronLeft, 
+  Share2, 
+  MoreHorizontal, 
+  Play, 
+  Shuffle, 
+  Music2 
+} from 'lucide-react-native';
+
+export const PlaylistDetailScreen = ({ route, navigation }: any) => {
+  const { playlistId } = route.params;
+  const playlists = useAppSelector(state => state.playlist.playlists);
+  const playlist = playlists.find(p => p.id === playlistId);
+  
+  const { currentSong, shuffle } = useAppSelector(state => state.player);
+  const colors = useAppSelector(state => state.theme.colors);
+  const dispatch = useAppDispatch();
+
+  const isLikedPlaylist = playlistId === 'liked';
+  const isFavoritesPlaylist = playlistId === 'favorites';
+
+  const handlePlaySong = useCallback((song: any) => {
+    if (playlist?.songs) {
+      dispatch(playSong({ song, queue: playlist.songs }));
+    }
+  }, [playlist?.songs, dispatch]);
+
+  const handlePlayAll = useCallback(() => {
+    if (playlist?.songs && playlist.songs.length > 0) {
+      if (shuffle) {
+        dispatch(toggleShuffle());
+      }
+      dispatch(playSong({ song: playlist.songs[0], queue: playlist.songs }));
+    }
+  }, [playlist?.songs, shuffle, dispatch]);
+
+  const handleShufflePlay = useCallback(() => {
+    if (playlist?.songs && playlist.songs.length > 0) {
+      if (!shuffle) {
+        dispatch(toggleShuffle());
+      }
+      const shuffled = [...playlist.songs].sort(() => Math.random() - 0.5);
+      dispatch(playSong({ song: shuffled[0], queue: shuffled }));
+    }
+  }, [playlist?.songs, shuffle, dispatch]);
+
+  const handleMiniPlayerPress = () => {
+    navigation.navigate('Player');
+  };
+
+  const renderSongItem = ({ item, index }: { item: any; index: number }) => (
+    <SongListItem
+      song={item}
+      onPress={handlePlaySong}
+      showCover={true}
+      showDuration={true}
+      showActions={!isLikedPlaylist}
+      isCurrentSong={currentSong?.id === item.id}
+      index={index}
+      showIndex={true}
+    />
+  );
+
+  if (!playlist) {
+    return (
+      <SafeContainer style={styles.container}>
+        <View style={styles.notFound}>
+          <Text style={[styles.notFoundText, { color: colors.text }]}>
+            Playlist not found
+          </Text>
+          <TouchableOpacity 
+            style={[styles.backButton, { backgroundColor: colors.primary }]}
+            onPress={() => navigation.goBack()}
+          >
+            <Text style={[styles.backButtonText, { color: colors.background }]}>
+              Go Back
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </SafeContainer>
+    );
+  }
+
+  const playlistCover = isLikedPlaylist 
+    ? 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?q=80&w=1000&auto=format&fit=crop'
+    : isFavoritesPlaylist
+    ? 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?q=80&w=1000&auto=format&fit=crop'
+    : playlist.coverUrl || 'https://images.unsplash.com/photo-1459749411177-042180ce673c?q=80&w=1000&auto=format&fit=crop';
+
+  return (
+    <SafeContainer style={styles.container}>
+      <ScrollView 
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[
+          styles.scrollContent,
+          currentSong && styles.scrollContentWithPlayer
+        ]}
+      >
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBack}>
+            <ChevronLeft size={28} color={colors.text} />
+          </TouchableOpacity>
+          <View style={styles.headerRight}>
+            <TouchableOpacity style={styles.headerButton}>
+              <Share2 size={20} color={colors.text} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.headerButton}>
+              <MoreHorizontal size={20} color={colors.text} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <View style={styles.playlistInfo}>
+          <Image source={{ uri: playlistCover }} style={styles.playlistCover} />
+          <Text style={[styles.playlistName, { color: colors.text }]} numberOfLines={2}>
+            {playlist.name}
+          </Text>
+          <Text style={[styles.playlistCount, { color: colors.textMuted }]}>
+            {playlist.songs.length} {playlist.songs.length === 1 ? 'song' : 'songs'}
+          </Text>
+        </View>
+
+        <View style={styles.actions}>
+          <TouchableOpacity 
+            style={[styles.playButton, { backgroundColor: colors.primary }]}
+            onPress={handlePlayAll}
+            disabled={playlist.songs.length === 0}
+          >
+            <Play size={20} fill={colors.background} color={colors.background} />
+            <Text style={[styles.playButtonText, { color: colors.background }]}>Play</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={[styles.shuffleButton, { borderColor: colors.secondary }]}
+            onPress={handleShufflePlay}
+            disabled={playlist.songs.length === 0}
+          >
+            <Shuffle size={18} color={colors.text} />
+            <Text style={[styles.shuffleButtonText, { color: colors.text }]}>Shuffle</Text>
+          </TouchableOpacity>
+        </View>
+
+        {playlist.songs.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Music2 size={48} color={colors.textMuted} />
+            <Text style={[styles.emptyTitle, { color: colors.text }]}>No songs yet</Text>
+            <Text style={[styles.emptySubtitle, { color: colors.textMuted }]}>
+              {isLikedPlaylist 
+                ? 'Tap the heart icon on songs to add them here'
+                : 'Songs you add to this playlist will appear here'}
+            </Text>
+          </View>
+        ) : (
+          <FlatList
+            data={playlist.songs}
+            keyExtractor={(item) => item.id}
+            renderItem={renderSongItem}
+            scrollEnabled={false}
+            contentContainerStyle={styles.songsList}
+          />
+        )}
+
+        <View style={{ height: 100 }} />
+      </ScrollView>
+
+      {currentSong && <MiniPlayer onPress={handleMiniPlayerPress} />}
+    </SafeContainer>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+  },
+  scrollContentWithPlayer: {
+    paddingBottom: 0,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.md,
+  },
+  headerBack: {
+    padding: SPACING.xs,
+  },
+  headerRight: {
+    flexDirection: 'row',
+  },
+  headerButton: {
+    padding: SPACING.sm,
+  },
+  playlistInfo: {
+    alignItems: 'center',
+    paddingHorizontal: SPACING.xl,
+    marginTop: SPACING.xl,
+  },
+  playlistCover: {
+    width: 200,
+    height: 200,
+    borderRadius: SIZES.radius,
+  },
+  playlistName: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginTop: SPACING.lg,
+  },
+  playlistCount: {
+    fontSize: 14,
+    marginTop: SPACING.xs,
+  },
+  actions: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: SPACING.xl,
+    marginTop: SPACING.xl,
+    gap: SPACING.md,
+  },
+  playButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: SPACING.xl,
+    paddingVertical: SPACING.md,
+    borderRadius: SIZES.radius,
+    gap: SPACING.sm,
+  },
+  playButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  shuffleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: SPACING.xl,
+    paddingVertical: SPACING.md,
+    borderRadius: SIZES.radius,
+    borderWidth: 1,
+    gap: SPACING.sm,
+  },
+  shuffleButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  songsList: {
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.lg,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    paddingVertical: SPACING.xxl * 2,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginTop: SPACING.lg,
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    marginTop: SPACING.sm,
+    textAlign: 'center',
+    maxWidth: 280,
+  },
+  notFound: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  notFoundText: {
+    fontSize: 18,
+    marginBottom: SPACING.lg,
+  },
+  backButton: {
+    paddingHorizontal: SPACING.xl,
+    paddingVertical: SPACING.md,
+    borderRadius: SIZES.radius,
+  },
+  backButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+});
