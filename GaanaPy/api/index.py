@@ -1,8 +1,11 @@
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
+import aiohttp
 import sys
 import os
+from contextlib import asynccontextmanager
+from typing import Optional
 
 # Ensure the project root is in the python path for Vercel
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -11,10 +14,18 @@ try:
     from api.gaanapy import GaanaPy
 except ImportError:
     from .gaanapy import GaanaPy
-    
-from typing import Optional
 
-app = FastAPI()
+gaanapy = GaanaPy()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Initialize aiohttp session in async context
+    gaanapy.aiohttp = aiohttp.ClientSession()
+    yield
+    # Clean up session on shutdown
+    await gaanapy.aiohttp.close()
+
+app = FastAPI(lifespan=lifespan)
 
 # Enable CORS for all origins
 app.add_middleware(

@@ -12,10 +12,8 @@ from api.errors import Errors
 
 class GaanaPy(Songs, Albums, Artists, Trending, NewReleases, Charts, Playlists):
     def __init__(self):
-        self.aiohttp = aiohttp.ClientSession()
+        self.aiohttp = None
         self.api_endpoints = endpoints
         self.functions = Functions()
         self.errors = Errors()
         self.info = False
-    def __await__(self):
-        return self.async_init().__await__()
