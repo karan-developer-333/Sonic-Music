@@ -40,15 +40,15 @@ export async function GET(request: NextRequest) {
     const session = sessionManager.createSession(tokens, user || undefined);
     await sessionManager.setSessionCookie(session.userId);
 
-    logger.info('OAuth flow completed successfully', { userId: user?.id });
+    const APP_SCHEME = process.env.APP_SCHEME || 'sonic-music';
+    const redirectUrl = `${APP_SCHEME}://auth-callback?sessionId=${session.userId}&access_token=${tokens.accessToken}&refresh_token=${tokens.refreshToken}&expires_at=${tokens.expiresAt}`;
 
-    return NextResponse.redirect(
-      new URL('/?auth_success=true', request.url)
-    );
+    logger.info('OAuth flow completed successfully, redirecting to app', { userId: user?.id });
+
+    return NextResponse.redirect(redirectUrl);
   } catch (error) {
     logger.error('OAuth callback error', { error });
-    return NextResponse.redirect(
-      new URL('/?auth_error=callback_failed', request.url)
-    );
+    const APP_SCHEME = process.env.APP_SCHEME || 'sonic-music';
+    return NextResponse.redirect(`${APP_SCHEME}://auth-callback?error=callback_failed`);
   }
 }

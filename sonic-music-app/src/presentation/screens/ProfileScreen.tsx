@@ -11,7 +11,10 @@ import { SafeContainer } from '../components/SafeContainer';
 import { COLORS, SPACING, SIZES } from '../theme/theme';
 import { useAppSelector, useAppDispatch } from '../../application/store/hooks';
 import { toggleTheme } from '../../application/store/slices/themeSlice';
+import { loginStart, logout, setVerification } from '../../application/store/slices/authSlice';
 import { MiniPlayer } from '../components/MiniPlayer';
+import * as Linking from 'expo-linking';
+import Constants from 'expo-constants';
 import { 
   User, 
   Bell, 
@@ -22,7 +25,10 @@ import {
   Palette,
   Volume2,
   Sun,
-  Moon
+  Moon,
+  CheckCircle,
+  AlertTriangle,
+  ExternalLink
 } from 'lucide-react-native';
 
 interface SettingItemProps {
@@ -62,7 +68,49 @@ export const ProfileScreen = ({ navigation }: any) => {
   const { mode, colors } = useAppSelector(state => state.theme);
   const { playlists } = useAppSelector(state => state.playlist);
   const { currentSong } = useAppSelector(state => state.player);
+  const { isAuthenticated, user, isLoading, isVerified, verificationError } = useAppSelector(state => state.auth);
   const dispatch = useAppDispatch();
+
+  const checkConnection = async () => {
+    try {
+      const apiUrl = Constants.expoConfig?.extra?.apiUrl || 'https://f1rr36mb-3000.inc1.devtunnels.ms/api';
+      const response = await fetch(`${apiUrl}/auth/me`);
+      const data = await response.json();
+      
+      if (data.authenticated) {
+        dispatch(setVerification({ 
+          isVerified: data.verified !== false, 
+          error: data.reason === 'FORBIDDEN' ? 'SPOTIFY_RESTRICTED' : undefined 
+        }));
+      }
+    } catch (error) {
+       console.error('Connection check failed', error);
+    }
+  };
+
+  const handleFixConnection = () => {
+    Alert.alert(
+      'Fix Spotify 403 Error',
+      'This happens because your app is in "Development Mode". You must manually add your email to the dashboard.\n\n1. Go to Spotify Developer Dashboard\n2. Open your app settings\n3. Go to "User Management"\n4. Add your Spotify email address\n5. Wait 1 min and try again.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Open Dashboard', 
+          onPress: () => Linking.openURL('https://developer.spotify.com/dashboard') 
+        },
+      ]
+    );
+  };
+  const handleLogin = () => {
+    dispatch(loginStart());
+    // Get the base URL from constants or env
+    const apiUrl = Constants.expoConfig?.extra?.apiUrl || 'https://f1rr36mb-3000.inc1.devtunnels.ms/api';
+    Linking.openURL(`${apiUrl}/auth/login`);
+  };
+
+  const handleLogout = () => {
+    dispatch(logout());
+  };
 
   const totalSongs = playlists.reduce((acc, p) => acc + p.songs.length, 0);
 
@@ -101,14 +149,59 @@ export const ProfileScreen = ({ navigation }: any) => {
         <View style={[styles.profileCard, { backgroundColor: colors.card }]}>
           <View style={styles.avatarContainer}>
             <View style={[styles.avatar, { borderColor: colors.primary }]}>
-              <User size={40} color={colors.primary} />
+              {user && user.images?.[0] ? (
+                <View style={styles.avatarImageContainer}>
+                  {/* Avatar rendering usually requires an Image component, which I should ensure is imported or use lucide icon as fallback */}
+                  <User size={40} color={colors.primary} />
+                </View>
+              ) : (
+                <User size={40} color={colors.primary} />
+              )}
             </View>
             <View style={[styles.avatarGlow, { backgroundColor: colors.primary }]} />
           </View>
           <View style={styles.profileInfo}>
-            <Text style={[styles.profileName, { color: colors.text }]}>Sonic Listener</Text>
-            <Text style={[styles.profileSubtitle, { color: colors.primary }]}>Premium Member</Text>
+            <Text style={[styles.profileName, { color: colors.text }]}>
+              {isAuthenticated ? user?.display_name : 'Sonic Listener'}
+            </Text>
+            <View style={styles.statusRow}>
+              <Text style={[styles.profileSubtitle, { color: colors.primary, marginBottom: 0 }]}>
+                {isAuthenticated ? user?.email : 'Guest Member'}
+              </Text>
+              {isAuthenticated && (
+                <TouchableOpacity onPress={checkConnection} style={styles.statusBadge}>
+                   {isVerified ? (
+                     <CheckCircle size={14} color={COLORS.primary} />
+                   ) : (
+                     <AlertTriangle size={14} color={COLORS.danger} />
+                   )}
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
+          
+          {isAuthenticated && !isVerified && (
+            <TouchableOpacity 
+              style={[styles.fixButton, { borderColor: colors.danger }]}
+              onPress={handleFixConnection}
+            >
+              <AlertTriangle size={16} color={colors.danger} />
+              <Text style={[styles.fixButtonText, { color: colors.danger }]}>Fix 403 Connection</Text>
+              <ExternalLink size={14} color={colors.danger} />
+            </TouchableOpacity>
+          )}
+          
+          {!isAuthenticated && (
+            <TouchableOpacity 
+              style={[styles.loginButton, { backgroundColor: colors.primary }]}
+              onPress={handleLogin}
+              disabled={isLoading}
+            >
+              <Text style={[styles.loginButtonText, { color: colors.background }]}>
+                {isLoading ? 'Connecting...' : 'Login with Spotify'}
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         <View style={[styles.statsContainer, { backgroundColor: colors.card }]}>
@@ -218,9 +311,14 @@ export const ProfileScreen = ({ navigation }: any) => {
           />
         </View>
 
-        <TouchableOpacity style={[styles.logoutButton, { backgroundColor: colors.card }]}>
-          <Text style={[styles.logoutText, { color: colors.danger }]}>Sign Out</Text>
-        </TouchableOpacity>
+        {isAuthenticated && (
+          <TouchableOpacity 
+            style={[styles.logoutButton, { backgroundColor: colors.card }]}
+            onPress={handleLogout}
+          >
+            <Text style={[styles.logoutText, { color: colors.danger }]}>Sign Out</Text>
+          </TouchableOpacity>
+        )}
 
         <View style={{ height: 100 }} />
       </ScrollView>
@@ -259,6 +357,14 @@ const styles = StyleSheet.create({
     position: 'relative',
     marginBottom: SPACING.md,
   },
+  avatarImageContainer: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 40,
+    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   avatar: {
     width: 80,
     height: 80,
@@ -288,6 +394,40 @@ const styles = StyleSheet.create({
   profileSubtitle: {
     fontSize: 14,
     marginTop: 4,
+  },
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+    marginBottom: SPACING.md,
+  },
+  statusBadge: {
+    marginLeft: 8,
+    padding: 2,
+  },
+  fixButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginTop: SPACING.sm,
+    gap: 8,
+  },
+  fixButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  loginButton: {
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.sm,
+    borderRadius: 20,
+    marginTop: SPACING.sm,
+  },
+  loginButtonText: {
+    fontSize: 14,
+    fontWeight: 'bold',
   },
   statsContainer: {
     flexDirection: 'row',

@@ -50,11 +50,16 @@ export function rankResults(songs: NormalizedSong[], query: string): NormalizedS
 
 export function prioritizeSources(songs: NormalizedSong[]): NormalizedSong[] {
   const priority: Record<MusicSource, number> = {
-    spotify: 1,
-    jamendo: 2,
+    saavn: 1,
+    spotify: 2,
+    jamendo: 3,
   };
 
-  return [...songs].sort((a, b) => priority[a.source] - priority[b.source]);
+  return [...songs].sort((a, b) => {
+    const pA = priority[a.source] || 99;
+    const pB = priority[b.source] || 99;
+    return pA - pB;
+  });
 }
 
 export function aggregateResults(

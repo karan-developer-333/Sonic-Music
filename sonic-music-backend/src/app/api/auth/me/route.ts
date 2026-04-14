@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { sessionManager } from '@/services/session.service';
-import { refreshAccessToken } from '@/services/oauth.service';
+import { refreshAccessToken, getSpotifyUser } from '@/services/oauth.service';
 import { logger } from '@/utils/logger';
 
 export async function GET() {
@@ -25,9 +25,30 @@ export async function GET() {
       sessionManager.updateSession(session.userId, newTokens, session.user);
     }
 
+    const { user: spotifyUser, errorStatus } = await getSpotifyUser(tokens.accessToken);
+    
+    if (errorStatus === 403) {
+      logger.warn('Spotify connection rejected with 403 Forbidden', { userId: session.userId });
+      return NextResponse.json({
+        authenticated: true,
+        verified: false,
+        reason: 'FORBIDDEN',
+        user: session.user,
+        expiresAt: tokens.expiresAt,
+      });
+    }
+
+    if (spotifyUser) {
+      // Update session with fresh user data if needed
+      if (JSON.stringify(spotifyUser) !== JSON.stringify(session.user)) {
+        sessionManager.updateSession(session.userId, tokens, spotifyUser);
+      }
+    }
+
     return NextResponse.json({
       authenticated: true,
-      user: session.user,
+      verified: !!spotifyUser,
+      user: spotifyUser || session.user,
       expiresAt: tokens.expiresAt,
     });
   } catch (error) {

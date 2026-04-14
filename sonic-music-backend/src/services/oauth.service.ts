@@ -4,7 +4,7 @@ import type { SpotifyTokens, SpotifyUser } from '../types/auth';
 
 const CLIENT_ID = process.env.SPOTIFY_CLIENT_ID!;
 const CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET!;
-const REDIRECT_URI = process.env.SPOTIFY_REDIRECT_URI || 'http://localhost:3000/api/auth/callback';
+const REDIRECT_URI = process.env.SPOTIFY_REDIRECT_URI || 'https://f1rr36mb-3000.inc1.devtunnels.ms/api/auth/callback';
 
 const SPOTIFY_ACCOUNTS_URL = 'https://accounts.spotify.com';
 const SPOTIFY_API_URL = 'https://api.spotify.com/v1';
@@ -114,7 +114,7 @@ export async function refreshAccessToken(refreshToken: string): Promise<SpotifyT
   }
 }
 
-export async function getSpotifyUser(accessToken: string): Promise<SpotifyUser | null> {
+export async function getSpotifyUser(accessToken: string): Promise<{ user: SpotifyUser | null; errorStatus?: number }> {
   try {
     const response = await axios.get(`${SPOTIFY_API_URL}/me`, {
       headers: {
@@ -123,17 +123,20 @@ export async function getSpotifyUser(accessToken: string): Promise<SpotifyUser |
     });
 
     return {
-      id: response.data.id,
-      display_name: response.data.display_name,
-      email: response.data.email,
-      images: response.data.images,
+      user: {
+        id: response.data.id,
+        display_name: response.data.display_name,
+        email: response.data.email,
+        images: response.data.images,
+      }
     };
   } catch (err: any) {
+    const status = err.response?.status;
     logger.error('Failed to get Spotify user', {
-      status: err.response?.status,
+      status,
       error: err.message,
     });
-    return null;
+    return { user: null, errorStatus: status };
   }
 }
 

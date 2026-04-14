@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cache } from '@/cache/redis.cache';
 import { getSpotifyTrending, getSpotifyTrendingWithOAuth, shouldUseOAuth } from '@/services/spotify.service';
 import { getJamendoTrending } from '@/services/jamendo.service';
+import { getSaavnTrending } from '@/services/saavn.service';
 import { getMockTrending } from '@/services/mock.service';
 import { aggregateResults } from '@/aggregator/music.aggregator';
 import { sessionManager } from '@/services/session.service';
@@ -49,15 +50,19 @@ export async function GET(request: NextRequest) {
       spotifyPromise = getSpotifyTrending();
     }
 
-    const [spotify, jamendo] = await Promise.allSettled([
+    const [spotify, jamendo, saavn] = await Promise.allSettled([
       spotifyPromise,
       getJamendoTrending(),
+      getSaavnTrending(),
     ]);
 
     const results: NormalizedSong[] = [];
 
     if (spotify.status === 'fulfilled' && spotify.value.data) {
       results.push(...spotify.value.data);
+    }
+    if (saavn.status === 'fulfilled' && saavn.value.data) {
+      results.push(...saavn.value.data);
     }
     if (jamendo.status === 'fulfilled' && jamendo.value.data) {
       results.push(...jamendo.value.data);

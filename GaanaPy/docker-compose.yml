@@ -1,0 +1,7 @@
+services:
+  gaanapy:
+    image: zingytomato/gaanapy:main
+    container_name: gaanapy
+    ports:
+      - "8000:8000"
+    restart: unless-stopped

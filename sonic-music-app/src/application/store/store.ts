@@ -6,11 +6,12 @@ import playerReducer from './slices/playerSlice';
 import playlistReducer from './slices/playlistSlice';
 import themeReducer from './slices/themeSlice';
 import historyReducer from './slices/historySlice';
+import authReducer from './slices/authSlice';
 
 const persistConfig = {
   key: 'root',
   storage: AsyncStorage,
-  whitelist: ['history', 'theme'],
+  whitelist: ['history', 'theme', 'auth'],
 };
 
 const rootReducer = combineReducers({
@@ -18,6 +19,7 @@ const rootReducer = combineReducers({
   playlist: playlistReducer,
   theme: themeReducer,
   history: historyReducer,
+  auth: authReducer,
 });
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);
