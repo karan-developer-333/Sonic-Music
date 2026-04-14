@@ -3,6 +3,8 @@ import { Platform } from 'react-native';
 import { Song } from '../../domain/models/MusicModels';
 import { CategoryResponse } from '../../domain/models/ApiModels';
 import { MusicApiService } from '../../data/services/MusicApiService';
+import { useAppSelector } from '../store/hooks';
+import { selectRecommendations as selectRecommendedGenres } from '../store/slices/historySlice';
 
 const DEBUG = false;
 
@@ -28,9 +30,6 @@ interface UseHomeDataResult extends UseMusicDataResult<HomeData> {
   activeCategory: string;
   filteredSongs: Song[];
 }
-
-import { useAppSelector } from '../store/hooks';
-import { selectRecommendations as selectRecommendedGenres } from '../store/slices/historySlice';
 
 export function usePopularSongs(limit = 10): UseMusicDataResult<Song[]> {
   const [data, setData] = useState<Song[] | null>(null);
@@ -251,8 +250,8 @@ export function useHomeData(): UseHomeDataResult {
         MusicApiService.getPopularSongs(10),
         MusicApiService.getNewReleases(10),
         MusicApiService.getCategories(),
-      ]).then((results) =>
-        results.map((r) => (r.status === 'fulfilled' ? r.value : []))
+      ]).then((results): [Song[], Song[], CategoryResponse[]] =>
+        results.map((r) => (r.status === 'fulfilled' ? r.value : [])) as [Song[], Song[], CategoryResponse[]]
       );
 
       setHomeData({

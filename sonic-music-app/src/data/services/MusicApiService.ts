@@ -1,15 +1,38 @@
 import { Platform } from 'react-native';
 import apiClient from './ApiClient';
 import { MediaService } from './MediaService';
+import { PaginatedResponse, Song, Album, Category } from '../../domain/models/MusicModels';
 
 const DEBUG_MODE = false;
 const CACHE_TTL = 5 * 60 * 1000;
+
+interface SongResponse {
+  id: string;
+  title: string;
+  artist: string;
+  thumbnail?: string;
+  coverUrl?: string;
+  streamUrl?: string;
+  audioUrl?: string;
+  duration?: number;
+  genre?: string;
+  categoryId?: string;
+  source?: string;
+}
+
+interface CategoryResponse {
+  id: string;
+  name: string;
+  image?: string;
+  coverUrl?: string;
+  songCount?: number;
+}
 
 interface CacheEntry<T> {
   data: T;
   timestamp: number;
 }
-
+ 
 class ApiCache {
   private static cache = new Map<string, CacheEntry<any>>();
   private static pending = new Map<string, Promise<any>>();
@@ -145,6 +168,93 @@ export class MusicApiService {
         `/search?q=${encodeURIComponent(query)}`
       );
       return response.data.songs.map(this.mapSongResponseToSong);
+    });
+  }
+
+  static async getExploreSongs(
+    page = 1,
+    limit = 20,
+    language = 'Hindi'
+  ): Promise<{ items: Song[]; page: number; total: number; hasMore: boolean }> {
+    const cacheKey = this.getCacheKey('explore:songs', { page, limit, language });
+
+    return ApiCache.getOrFetch(cacheKey, async () => {
+      const response = await apiClient.get<{ 
+        items: SongResponse[]; 
+        page: number; 
+        total: number; 
+        hasMore: boolean 
+      }>(
+        `/explore?page=${page}&limit=${limit}&type=trending&language=${encodeURIComponent(language)}`
+      );
+
+      return {
+        items: response.data.items.map(this.mapSongResponseToSong),
+        page: response.data.page,
+        total: response.data.total,
+        hasMore: response.data.hasMore,
+      };
+    });
+  }
+
+  static async getAlbums(
+    page = 1,
+    limit = 20
+  ): Promise<{ items: Album[]; page: number; total: number; hasMore: boolean }> {
+    const cacheKey = this.getCacheKey('albums', { page, limit });
+
+    return ApiCache.getOrFetch(cacheKey, async () => {
+      const response = await apiClient.get<{ 
+        items: any[]; 
+        page: number; 
+        total: number; 
+        hasMore: boolean 
+      }>(
+        `/albums?page=${page}&limit=${limit}`
+      );
+
+      return {
+        items: response.data.items.map((a: any) => ({
+          id: a.id,
+          title: a.title,
+          artist: a.artist,
+          coverUrl: a.coverUrl,
+          artwork: a.artwork,
+          source: a.source || 'gaana',
+          type: 'album' as const,
+          releaseDate: a.releaseDate,
+          genre: a.genre,
+          language: a.language,
+          songCount: a.songCount,
+        })),
+        page: response.data.page,
+        total: response.data.total,
+        hasMore: response.data.hasMore,
+      };
+    });
+  }
+
+  static async getAlbumById(id: string): Promise<Album & { tracks: Song[] }> {
+    const cacheKey = `album:${id}`;
+
+    return ApiCache.getOrFetch(cacheKey, async () => {
+      const response = await apiClient.get<{ album: any }>(`/albums/${id}`);
+      const a = response.data.album;
+      
+      return {
+        id: a.id,
+        title: a.title,
+        artist: a.artist,
+        coverUrl: a.coverUrl,
+        artwork: a.artwork,
+        source: a.source || 'gaana',
+        type: 'album' as const,
+        releaseDate: a.releaseDate,
+        genre: a.genre,
+        language: a.language,
+        songCount: a.songCount || a.tracks?.length || 0,
+        tracks: (a.tracks || []).map((t: any) => this.mapSongResponseToSong(t)),
+      };
     });
   }
 

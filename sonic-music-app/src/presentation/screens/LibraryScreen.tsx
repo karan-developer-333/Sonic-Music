@@ -9,9 +9,10 @@ import {
   TextInput,
   Alert,
   ScrollView,
-  RefreshControl,
+  RefreshControl, 
   Platform,
   PermissionsAndroid,
+  Dimensions,
 } from 'react-native';
 import { SafeContainer } from '../components/SafeContainer';
 import { SPACING, SIZES } from '../theme/theme';
@@ -23,20 +24,29 @@ import { SongListItem } from '../components/SongListItem';
 import { SongListItemSkeleton } from '../components/LoadingState';
 import { ErrorState, EmptyState } from '../components/ErrorState';
 import { MediaService } from '../../data/services/MediaService';
-import { Song } from '../../domain/models/MusicModels';
-import { Plus, Heart, Music2, Trash2, FileMusic, Smartphone } from 'lucide-react-native';
+import apiClient from '../../data/services/ApiClient';
+import { Song, Album } from '../../domain/models/MusicModels';
+import { Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 
-type LibraryTab = 'playlists' | 'liked' | 'local';
+const { width } = Dimensions.get('window');
+const ALBUM_CARD_WIDTH = (width - SPACING.lg * 3) / 2;
+
+type LibraryTab = 'playlists' | 'liked' | 'local' | 'saved';
 
 export const LibraryScreen = ({ navigation }: any) => {
   const [activeTab, setActiveTab] = useState<LibraryTab>('playlists');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newPlaylistName, setNewPlaylistName] = useState('');
-  
+
   const [localSongs, setLocalSongs] = useState<Song[]>([]);
   const [loadingLocal, setLoadingLocal] = useState(true);
   const [localError, setLocalError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+
+  const [savedAlbums, setSavedAlbums] = useState<Album[]>([]);
+  const [loadingSaved, setLoadingSaved] = useState(true);
+  const [savedError, setSavedError] = useState<string | null>(null);
 
   const playlists = useAppSelector(state => state.playlist.playlists);
   const currentSong = useAppSelector(state => state.player.currentSong);
@@ -92,7 +102,32 @@ export const LibraryScreen = ({ navigation }: any) => {
     }
   }, [requestPermissions]);
 
-  useEffect(() => { fetchLocalSongs(); }, [fetchLocalSongs]);
+  const fetchSavedAlbums = useCallback(async () => {
+    try {
+      setLoadingSaved(true);
+      setSavedError(null);
+      const response = await apiClient.get<{ albums: any[] }>('/saved-albums');
+      setSavedAlbums(response.data.albums.map((a: any) => ({
+        id: a.id,
+        title: a.title,
+        artist: a.artist,
+        coverUrl: a.coverUrl,
+        source: a.source,
+        type: 'album' as const,
+      })));
+    } catch (err) {
+      setSavedError('Failed to load saved albums');
+    } finally {
+      setLoadingSaved(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchLocalSongs();
+    if (activeTab === 'saved') {
+      fetchSavedAlbums();
+    }
+  }, [fetchLocalSongs, activeTab, fetchSavedAlbums]);
 
   const handleCreatePlaylist = () => {
     if (newPlaylistName.trim()) {
@@ -133,7 +168,7 @@ export const LibraryScreen = ({ navigation }: any) => {
         <EmptyState
           title="No Local Songs"
           message="Add music files to your device"
-          icon={<Smartphone size={32} color={colors.textMuted} />}
+          icon={<Ionicons name="phone-portrait" size={32} color={colors.textMuted} />}
         />
       );
     }
@@ -164,11 +199,11 @@ export const LibraryScreen = ({ navigation }: any) => {
   const renderPlaylistsContent = () => (
     <>
       <TouchableOpacity style={styles.createButton} onPress={() => setShowCreateModal(true)}>
-        <Plus size={24} color={colors.primary} />
+        <Ionicons name="add" size={24} color={colors.primary} />
         <Text style={[styles.createButtonText, { color: colors.primary }]}>Create Playlist</Text>
       </TouchableOpacity>
       {playlists.map((playlist) => (
-        <TouchableOpacity 
+        <TouchableOpacity
           key={playlist.id}
           style={[styles.playlistItem, { backgroundColor: colors.card }]}
           onPress={() => navigation.navigate('PlaylistDetail', { playlistId: playlist.id })}
@@ -180,7 +215,7 @@ export const LibraryScreen = ({ navigation }: any) => {
           </View>
           {playlist.id !== 'liked' && (
             <TouchableOpacity style={styles.deleteButton} onPress={() => handleDeletePlaylist(playlist.id, playlist.name)}>
-              <Trash2 size={18} color={colors.textMuted} />
+              <Ionicons name="trash" size={18} color={colors.textMuted} />
             </TouchableOpacity>
           )}
         </TouchableOpacity>
@@ -193,7 +228,7 @@ export const LibraryScreen = ({ navigation }: any) => {
     if (songs.length === 0) {
       return (
         <View style={styles.emptyContainer}>
-          <Heart size={48} color={colors.textMuted} />
+          <Ionicons name="heart" size={48} color={colors.textMuted} />
           <Text style={[styles.emptyTitle, { color: colors.text }]}>No liked songs yet</Text>
           <Text style={[styles.emptySubtitle, { color: colors.textMuted }]}>Tap heart on songs to add them here</Text>
         </View>
@@ -211,18 +246,56 @@ export const LibraryScreen = ({ navigation }: any) => {
     ));
   };
 
+  const renderSavedContent = () => {
+    if (loadingSaved) {
+      return (
+        <View style={styles.loadingContainer}>
+          <Ionicons name="hourglass" size={32} color={colors.primary} />
+        </View>
+      );
+    }
+    if (savedError) {
+      return <ErrorState message={savedError} onRetry={fetchSavedAlbums} />;
+    }
+    if (savedAlbums.length === 0) {
+      return (
+        <EmptyState
+          title="No Saved Albums"
+          message="Save albums from Explore to see them here"
+          icon={<Feather name="bookmark" size={32} color={colors.textMuted} />}
+        />
+      );
+    }
+    return (
+      <View style={styles.albumsGrid}>
+        {savedAlbums.map((album) => (
+          <TouchableOpacity
+            key={album.id}
+            style={styles.albumCard}
+            onPress={() => navigation.navigate('AlbumDetail', { albumId: album.id, title: album.title })}
+          >
+            <Image source={{ uri: album.coverUrl }} style={styles.albumImage} />
+            <Text style={[styles.albumTitle, { color: colors.text }]} numberOfLines={1}>{album.title}</Text>
+            <Text style={[styles.albumArtist, { color: colors.textMuted }]} numberOfLines={1}>{album.artist}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    );
+  };
+
   const renderContent = () => {
     switch (activeTab) {
       case 'local': return renderLocalContent();
       case 'playlists': return renderPlaylistsContent();
       case 'liked': return renderLikedContent();
+      case 'saved': return renderSavedContent();
       default: return null;
     }
   };
 
   return (
     <SafeContainer style={styles.container}>
-      <ScrollView 
+      <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => fetchLocalSongs(true)} tintColor={colors.primary} />}
@@ -233,16 +306,20 @@ export const LibraryScreen = ({ navigation }: any) => {
 
         <View style={styles.tabContainer}>
           <TouchableOpacity style={[styles.tab, { backgroundColor: activeTab === 'local' ? colors.primary : colors.secondary }]} onPress={() => setActiveTab('local')}>
-            <FileMusic size={18} color={activeTab === 'local' ? colors.background : colors.textMuted} />
+            <Ionicons name="musical-notes" size={18} color={activeTab === 'local' ? colors.background : colors.textMuted} />
             <Text style={[styles.tabText, { color: activeTab === 'local' ? colors.background : colors.textMuted }]}>Device</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[styles.tab, { backgroundColor: activeTab === 'playlists' ? colors.primary : colors.secondary }]} onPress={() => setActiveTab('playlists')}>
-            <Music2 size={18} color={activeTab === 'playlists' ? colors.background : colors.textMuted} />
+            <Ionicons name="musical-note" size={18} color={activeTab === 'playlists' ? colors.background : colors.textMuted} />
             <Text style={[styles.tabText, { color: activeTab === 'playlists' ? colors.background : colors.textMuted }]}>Playlists</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[styles.tab, { backgroundColor: activeTab === 'liked' ? colors.primary : colors.secondary }]} onPress={() => setActiveTab('liked')}>
-            <Heart size={18} color={activeTab === 'liked' ? colors.background : colors.textMuted} />
+            <Ionicons name="heart" size={18} color={activeTab === 'liked' ? colors.background : colors.textMuted} />
             <Text style={[styles.tabText, { color: activeTab === 'liked' ? colors.background : colors.textMuted }]}>Liked</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.tab, { backgroundColor: activeTab === 'saved' ? colors.primary : colors.secondary }]} onPress={() => setActiveTab('saved')}>
+            <Ionicons name="disc" size={18} color={activeTab === 'saved' ? colors.background : colors.textMuted} />
+            <Text style={[styles.tabText, { color: activeTab === 'saved' ? colors.background : colors.textMuted }]}>Albums</Text>
           </TouchableOpacity>
         </View>
 
@@ -251,7 +328,7 @@ export const LibraryScreen = ({ navigation }: any) => {
       </ScrollView>
 
       {currentSong && <MiniPlayer onPress={handleMiniPlayerPress} />}
-      
+
       <Modal visible={showCreateModal} transparent animationType="fade" onRequestClose={() => setShowCreateModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
@@ -312,6 +389,12 @@ const styles = StyleSheet.create({
   modalButton: { paddingHorizontal: SPACING.lg, paddingVertical: SPACING.md, borderRadius: SIZES.radius },
   modalButtonText: { fontSize: 16 },
   modalButtonTextPrimary: { fontSize: 16, fontWeight: '600' },
+  loadingContainer: { alignItems: 'center', paddingVertical: SPACING.xxl },
+  albumsGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
+  albumCard: { width: ALBUM_CARD_WIDTH, marginBottom: SPACING.lg },
+  albumImage: { width: '100%', aspectRatio: 1, borderRadius: SIZES.radius },
+  albumTitle: { fontSize: 14, fontWeight: '600', marginTop: SPACING.sm },
+  albumArtist: { fontSize: 12, marginTop: 2 },
 });
 
 export default LibraryScreen;

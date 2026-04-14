@@ -1,6 +1,7 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { Song } from '../../../domain/models/MusicModels';
 import { PlaybackService } from '../../services/PlaybackService';
+import { addToHistory } from './historySlice';
 
 export type RepeatMode = 'none' | 'all' | 'one';
 
@@ -42,8 +43,6 @@ const shuffleArray = <T,>(array: T[]): T[] => {
   }
   return shuffled;
 };
-
-import { addToHistory } from './historySlice';
 
 // Async Thunks
 export const playSong = createAsyncThunk(

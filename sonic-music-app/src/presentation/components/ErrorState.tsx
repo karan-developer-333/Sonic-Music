@@ -2,7 +2,8 @@ import React from 'react';
 import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
 import { useAppSelector } from '../../application/store/hooks';
 import { SPACING, SIZES } from '../theme/theme';
-import { AlertCircle, RefreshCw, WifiOff, FileQuestion } from 'lucide-react-native';
+import { Feather } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 
 interface ErrorStateProps {
   error?: string;
@@ -27,34 +28,34 @@ export const ErrorState: React.FC<ErrorStateProps> = ({
 
   const getDefaults = () => {
     switch (type) {
-      case 'network':
+        case 'network':
         return {
-          icon: WifiOff,
+          icon: 'cloud-offline' as any,
           defaultTitle: 'Connection Error',
           defaultMessage: 'Please check your internet connection and try again.',
         };
-      case 'not-found':
+        case 'not-found':
         return {
-          icon: FileQuestion,
+          icon: 'help-circle-outline' as any,
           defaultTitle: 'Not Found',
           defaultMessage: "We couldn't find what you're looking for.",
         };
-      case 'permission':
+        case 'permission':
         return {
-          icon: AlertCircle,
+          icon: 'alert-circle' as any,
           defaultTitle: 'Permission Required',
           defaultMessage: 'Please grant the required permissions to continue.',
         };
       default:
         return {
-          icon: AlertCircle,
+          icon: 'alert-circle' as any,
           defaultTitle: 'Something Went Wrong',
           defaultMessage: error || 'An unexpected error occurred. Please try again.',
         };
     }
   };
 
-  const { icon: Icon, defaultTitle, defaultMessage } = getDefaults();
+  const { icon, defaultTitle, defaultMessage } = getDefaults();
 
   const displayTitle = title || defaultTitle;
   const displayMessage = message || defaultMessage;
@@ -62,7 +63,7 @@ export const ErrorState: React.FC<ErrorStateProps> = ({
   const content = (
     <View style={styles.container}>
       <View style={[styles.iconContainer, { backgroundColor: colors.secondary }]}>
-        <Icon size={32} color={colors.danger} />
+        <Ionicons name={icon} size={32} color={colors.danger} />
       </View>
       <Text style={[styles.title, { color: colors.text }]}>{displayTitle}</Text>
       <Text style={[styles.message, { color: colors.textMuted }]}>{displayMessage}</Text>
@@ -72,7 +73,7 @@ export const ErrorState: React.FC<ErrorStateProps> = ({
           onPress={onRetry}
           activeOpacity={0.8}
         >
-          <RefreshCw size={18} color={colors.background} />
+          <Feather name="refresh-cw" size={18} color={colors.background} />
           <Text style={[styles.retryText, { color: colors.background }]}>{retryText}</Text>
         </TouchableOpacity>
       )}

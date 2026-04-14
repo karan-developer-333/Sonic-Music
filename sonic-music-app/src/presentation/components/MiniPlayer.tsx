@@ -9,8 +9,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SPACING, SIZES } from '../theme/theme';
 import { useAppSelector, useAppDispatch } from '../../application/store/hooks';
-import { playNext, togglePlayback } from '../../application/store/slices/playerSlice';
-import { Play, Pause, SkipForward, Music2 } from 'lucide-react-native';
+import { skipNext, togglePlayback } from '../../application/store/slices/playerSlice';
+import { Ionicons } from '@expo/vector-icons';
 
 interface MiniPlayerProps {
   onPress: () => void;
@@ -31,44 +31,44 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = memo(({ onPress }) => {
 
   const handlePlayNext = useCallback((e: any) => {
     e.stopPropagation();
-    dispatch(playNext());
+    dispatch(skipNext());
   }, [dispatch]);
 
   if (!currentSong) return null;
 
   return (
-    <TouchableOpacity 
+    <TouchableOpacity
       style={[
-        styles.container, 
-        { 
+        styles.container,
+        {
           backgroundColor: colors.card,
           bottom: bottomOffset,
         }
-      ]} 
-      onPress={onPress} 
+      ]}
+      onPress={onPress}
       activeOpacity={0.9}
     >
       <View style={[styles.progressBar, { backgroundColor: colors.secondary }]}>
         <View
           style={[
-            styles.progress, 
+            styles.progress,
             { backgroundColor: colors.primary, width: `${progress * 100}%` }
-          ]} 
+          ]}
         />
       </View>
-      
+
       <View style={styles.content}>
         {currentSong.coverUrl ? (
-          <Image 
-            source={{ uri: currentSong.coverUrl }} 
-            style={[styles.cover, { backgroundColor: colors.secondary }]} 
+          <Image
+            source={{ uri: currentSong.coverUrl }}
+            style={[styles.cover, { backgroundColor: colors.secondary }]}
           />
         ) : (
           <View style={[styles.cover, { backgroundColor: colors.secondary }]}>
-            <Music2 size={24} color={colors.textMuted} />
+            <Ionicons name="musical-note" size={24} color={colors.textMuted} />
           </View>
         )}
-        
+
         <View style={styles.info}>
           <Text style={[styles.title, { color: colors.text }]} numberOfLines={1}>
             {currentSong.title || 'Unknown'}
@@ -84,9 +84,9 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = memo(({ onPress }) => {
             onPress={handleTogglePlayPause}
           >
             {isPlaying ? (
-              <Pause size={24} color={colors.text} fill={colors.text} />
+              <Ionicons name="pause-circle" size={24} color={colors.text} />
             ) : (
-              <Play size={24} color={colors.text} fill={colors.text} />
+              <Ionicons name="play-circle" size={24} color={colors.text} />
             )}
           </TouchableOpacity>
 
@@ -94,7 +94,7 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = memo(({ onPress }) => {
             style={styles.controlButton}
             onPress={handlePlayNext}
           >
-            <SkipForward size={24} color={colors.text} fill={colors.text} />
+            <Ionicons name="play-skip-forward" size={24} color={colors.text} />
           </TouchableOpacity>
         </View>
       </View>

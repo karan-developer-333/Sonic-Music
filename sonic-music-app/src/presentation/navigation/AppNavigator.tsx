@@ -1,7 +1,7 @@
 import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
-import { OnboardingScreen, PlayerScreen, PlaylistDetailScreen } from '../screens';
+import { OnboardingScreen, PlayerScreen, PlaylistDetailScreen, AlbumDetailScreen, AuthScreen } from '../screens';
 import { TabNavigator as MainTabNavigator } from './TabNavigator';
 import { useAppSelector } from '../../application/store/hooks';
 
@@ -10,6 +10,8 @@ export type RootStackParamList = {
   Main: undefined;
   Player: undefined;
   PlaylistDetail: { playlistId: string };
+  AlbumDetail: { albumId: string; title: string };
+  Auth: undefined;
 };
 
 const Stack = createStackNavigator<RootStackParamList>();
@@ -53,6 +55,20 @@ export const AppNavigator = () => {
         <Stack.Screen 
           name="PlaylistDetail" 
           component={PlaylistDetailScreen}
+          options={{
+            presentation: 'modal',
+          }}
+        />
+        <Stack.Screen 
+          name="AlbumDetail" 
+          component={AlbumDetailScreen}
+          options={{
+            presentation: 'modal',
+          }}
+        />
+        <Stack.Screen 
+          name="Auth" 
+          component={AuthScreen}
           options={{
             presentation: 'modal',
           }}

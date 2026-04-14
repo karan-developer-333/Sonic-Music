@@ -1,9 +1,9 @@
 import React, { useEffect } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, Dimensions } from 'react-native';
-import Animated, { 
-  useSharedValue, 
-  useAnimatedStyle, 
-  withTiming, 
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
   withDelay,
   Easing
 } from 'react-native-reanimated';
@@ -11,7 +11,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { SafeContainer } from '../components/SafeContainer';
 import { COLORS, SPACING, SIZES } from '../theme/theme';
 import { useAppSelector } from '../../application/store/hooks';
-import { Headphones } from 'lucide-react-native';
+import { Feather } from '@expo/vector-icons';
 
 const { width, height } = Dimensions.get('window');
 
@@ -25,7 +25,7 @@ export const OnboardingScreen = ({ navigation }: any) => {
     opacity.value = withTiming(1, { duration: 1000 });
     scale.value = withTiming(1, { duration: 1000, easing: Easing.out(Easing.back(1.5)) });
     translateY.value = withTiming(0, { duration: 800 });
-  }, []);
+  }, []); 
 
   const animatedStyle = useAnimatedStyle(() => {
     'worklet';
@@ -49,10 +49,10 @@ export const OnboardingScreen = ({ navigation }: any) => {
         colors={[colors.secondary, colors.background]}
         style={StyleSheet.absoluteFill}
       />
-      
+
       <Animated.View style={[styles.content, animatedStyle]}>
         <View style={styles.iconContainer}>
-          <Headphones size={120} color={colors.primary} strokeWidth={1.5} />
+          <Feather name="headphones" size={120} color={colors.primary} />
           <View style={[styles.glow, { backgroundColor: colors.primary }]} />
         </View>
 
@@ -62,7 +62,7 @@ export const OnboardingScreen = ({ navigation }: any) => {
             Experience music like never before with high-fidelity sound and neon aesthetics.
           </Text>
 
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.button, { backgroundColor: colors.primary }]}
             onPress={() => navigation.replace('Main')}
             activeOpacity={0.8}

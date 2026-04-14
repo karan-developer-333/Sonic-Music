@@ -8,6 +8,7 @@ interface ListeningHistoryEntry {
   playedAt: number;
   duration: number;
   completed: boolean;
+  coverUrl?: string;
 }
 
 interface ArtistStats {
@@ -44,14 +45,16 @@ const historySlice = createSlice({
   reducers: {
     addToHistory: (state, action: PayloadAction<{ song: Song; duration: number; completed: boolean }>) => {
       const { song, duration, completed } = action.payload;
+      const genre = song.categoryId || 'unknown';
       
       const entry: ListeningHistoryEntry = {
         songId: song.id,
         artist: song.artist,
-        genre: song.categoryId,
+        genre,
         playedAt: Date.now(),
         duration,
         completed,
+        coverUrl: song.coverUrl,
       };
 
       state.history = [...state.history, entry].slice(-MAX_HISTORY_SIZE);
@@ -68,13 +71,13 @@ const historySlice = createSlice({
         };
       }
 
-      const genreKey = song.categoryId;
+      const genreKey = genre;
       if (state.genreStats[genreKey]) {
         state.genreStats[genreKey].playCount += 1;
         state.genreStats[genreKey].lastPlayed = Date.now();
       } else {
         state.genreStats[genreKey] = {
-          genre: song.categoryId,
+          genre,
           playCount: 1,
           lastPlayed: Date.now(),
         };

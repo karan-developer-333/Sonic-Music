@@ -5,3 +5,6 @@ export * from './SearchScreen';
 export * from './LibraryScreen';
 export * from './ProfileScreen';
 export * from './PlaylistDetailScreen';
+export * from './ExploreScreen';
+export * from './AlbumDetailScreen';
+export * from './AuthScreen';

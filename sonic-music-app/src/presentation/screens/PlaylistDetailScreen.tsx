@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback } from 'react';
 import {
   StyleSheet,
   Text,
@@ -6,7 +6,7 @@ import {
   FlatList,
   Image,
   TouchableOpacity,
-  ScrollView,
+  ScrollView, 
 } from 'react-native';
 import { SafeContainer } from '../components/SafeContainer';
 import { SPACING, SIZES } from '../theme/theme';
@@ -14,20 +14,14 @@ import { useAppSelector, useAppDispatch } from '../../application/store/hooks';
 import { playSong, toggleShuffle } from '../../application/store/slices/playerSlice';
 import { SongListItem } from '../components/SongListItem';
 import { MiniPlayer } from '../components/MiniPlayer';
-import { 
-  ChevronLeft, 
-  Share2, 
-  MoreHorizontal, 
-  Play, 
-  Shuffle, 
-  Music2 
-} from 'lucide-react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 
 export const PlaylistDetailScreen = ({ route, navigation }: any) => {
   const { playlistId } = route.params;
   const playlists = useAppSelector(state => state.playlist.playlists);
   const playlist = playlists.find(p => p.id === playlistId);
-  
+
   const { currentSong, shuffle } = useAppSelector(state => state.player);
   const colors = useAppSelector(state => state.theme.colors);
   const dispatch = useAppDispatch();
@@ -84,7 +78,7 @@ export const PlaylistDetailScreen = ({ route, navigation }: any) => {
           <Text style={[styles.notFoundText, { color: colors.text }]}>
             Playlist not found
           </Text>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.backButton, { backgroundColor: colors.primary }]}
             onPress={() => navigation.goBack()}
           >
@@ -97,15 +91,15 @@ export const PlaylistDetailScreen = ({ route, navigation }: any) => {
     );
   }
 
-  const playlistCover = isLikedPlaylist 
+  const playlistCover = isLikedPlaylist
     ? 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?q=80&w=1000&auto=format&fit=crop'
     : isFavoritesPlaylist
-    ? 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?q=80&w=1000&auto=format&fit=crop'
-    : playlist.coverUrl || 'https://images.unsplash.com/photo-1459749411177-042180ce673c?q=80&w=1000&auto=format&fit=crop';
+      ? 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?q=80&w=1000&auto=format&fit=crop'
+      : playlist.coverUrl || 'https://images.unsplash.com/photo-1459749411177-042180ce673c?q=80&w=1000&auto=format&fit=crop';
 
   return (
     <SafeContainer style={styles.container}>
-      <ScrollView 
+      <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
           styles.scrollContent,
@@ -114,14 +108,14 @@ export const PlaylistDetailScreen = ({ route, navigation }: any) => {
       >
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBack}>
-            <ChevronLeft size={28} color={colors.text} />
+            <Ionicons name="chevron-back" size={28} color={colors.text} />
           </TouchableOpacity>
           <View style={styles.headerRight}>
             <TouchableOpacity style={styles.headerButton}>
-              <Share2 size={20} color={colors.text} />
+              <Feather name="share" size={20} color={colors.text} />
             </TouchableOpacity>
             <TouchableOpacity style={styles.headerButton}>
-              <MoreHorizontal size={20} color={colors.text} />
+              <Ionicons name="ellipsis-horizontal" size={20} color={colors.text} />
             </TouchableOpacity>
           </View>
         </View>
@@ -142,26 +136,26 @@ export const PlaylistDetailScreen = ({ route, navigation }: any) => {
             onPress={handlePlayAll}
             disabled={playlist.songs.length === 0}
           >
-            <Play size={20} fill={colors.background} color={colors.background} />
+            <Ionicons name="play" size={20} color={colors.background} />
             <Text style={[styles.playButtonText, { color: colors.background }]}>Play</Text>
           </TouchableOpacity>
-          
-          <TouchableOpacity 
+
+          <TouchableOpacity
             style={[styles.shuffleButton, { borderColor: colors.secondary }]}
             onPress={handleShufflePlay}
             disabled={playlist.songs.length === 0}
           >
-            <Shuffle size={18} color={colors.text} />
+            <Feather name="shuffle" size={18} color={colors.text} />
             <Text style={[styles.shuffleButtonText, { color: colors.text }]}>Shuffle</Text>
           </TouchableOpacity>
         </View>
 
         {playlist.songs.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Music2 size={48} color={colors.textMuted} />
+            <Ionicons name="musical-note" size={48} color={colors.textMuted} />
             <Text style={[styles.emptyTitle, { color: colors.text }]}>No songs yet</Text>
             <Text style={[styles.emptySubtitle, { color: colors.textMuted }]}>
-              {isLikedPlaylist 
+              {isLikedPlaylist
                 ? 'Tap the heart icon on songs to add them here'
                 : 'Songs you add to this playlist will appear here'}
             </Text>
@@ -301,3 +295,5 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
+
+export default PlaylistDetailScreen;

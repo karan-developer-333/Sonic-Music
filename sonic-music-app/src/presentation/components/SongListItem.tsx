@@ -3,7 +3,8 @@ import { StyleSheet, Text, View, Image, TouchableOpacity } from 'react-native';
 import { Song } from '../../domain/models/MusicModels';
 import { useAppSelector } from '../../application/store/hooks';
 import { SPACING } from '../theme/theme';
-import { Play, Pause, MoreHorizontal, Heart, Music } from 'lucide-react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 
 interface SongListItemProps {
   song: Song;
@@ -32,7 +33,7 @@ export const SongListItem: React.FC<SongListItemProps> = ({
 }) => {
   const colors = useAppSelector(state => state.theme.colors);
   const { isPlaying: playerIsPlaying, currentSong } = useAppSelector(state => state.player);
-  
+
   const isActive = currentSong?.id === song.id;
   const songIsPlaying = isActive && playerIsPlaying;
 
@@ -82,15 +83,15 @@ export const SongListItem: React.FC<SongListItemProps> = ({
             />
           ) : (
             <View style={[styles.coverPlaceholder, { backgroundColor: colors.secondary }]}>
-              <Music size={20} color={colors.textMuted} />
+              <Feather name="music" size={20} color={colors.textMuted} />
             </View>
           )}
           {isActive && (
             <View style={[styles.playingIndicator, { backgroundColor: colors.primary }]}>
               {songIsPlaying ? (
-                <Pause size={12} color={colors.background} fill={colors.background} />
+                <Ionicons name="pause" size={12} color={colors.background} />
               ) : (
-                <Play size={12} color={colors.background} fill={colors.background} />
+                <Ionicons name="play" size={12} color={colors.background} />
               )}
             </View>
           )}
@@ -124,7 +125,7 @@ export const SongListItem: React.FC<SongListItemProps> = ({
           onPress={handleMorePress}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <MoreHorizontal size={20} color={colors.textMuted} />
+          <Ionicons name="ellipsis-horizontal" size={20} color={colors.textMuted} />
         </TouchableOpacity>
       )}
     </TouchableOpacity>

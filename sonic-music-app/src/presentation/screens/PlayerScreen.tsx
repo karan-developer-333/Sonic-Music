@@ -1,72 +1,62 @@
 import React, { useCallback, useMemo, useState, useRef } from 'react';
-import { 
-  StyleSheet, 
-  Text, 
-  View, 
-  Image, 
-  TouchableOpacity, 
-  Dimensions,
+import {
+  StyleSheet,
+  Text,
+  View,
+  Image,
+  TouchableOpacity,
+  Dimensions, 
   Pressable,
 } from 'react-native';
 import { SafeContainer } from '../components/SafeContainer';
 import { SPACING, SIZES } from '../theme/theme';
 import { MiniPlayer } from '../components/MiniPlayer';
 import { LinearGradient } from 'expo-linear-gradient';
-import { 
-  ChevronDown, 
-  MoreHorizontal, 
-  SkipBack, 
-  SkipForward, 
-  Play, 
-  Pause, 
-  Heart, 
-  Repeat, 
-  Repeat1,
-  Shuffle 
-} from 'lucide-react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 
 const { width } = Dimensions.get('window');
 const IMAGE_SIZE = width * 0.8;
 
 const formatTime = (seconds: number): string => {
   if (!seconds || isNaN(seconds) || seconds < 0) return '0:00';
-  
+
   const hrs = Math.floor(seconds / 3600);
   const mins = Math.floor((seconds % 3600) / 60);
   const secs = Math.floor(seconds % 60);
-  
+
   if (hrs > 0) {
     return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   }
-  
+
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 };
 
 import { useAppSelector, useAppDispatch } from '../../application/store/hooks';
-import { togglePlayback, playNext, playPrevious, seekToPosition, toggleShuffle, toggleRepeat } from '../../application/store/slices/playerSlice';
+import { togglePlayback, skipNext, skipPrevious, seekToPosition, toggleShuffle, toggleRepeat } from '../../application/store/slices/playerSlice';
 import { addToPlaylist, removeFromPlaylist } from '../../application/store/slices/playlistSlice';
 
 export const PlayerScreen = React.memo(({ navigation }: any) => {
-  const { 
-    currentSong, 
+  const {
+    currentSong,
     isPlaying,
     isLoading,
-    progress, 
+    progress,
     currentTime,
     duration,
     shuffle,
     repeat,
   } = useAppSelector(state => state.player);
-  
+
   const colors = useAppSelector(state => state.theme.colors);
   const dispatch = useAppDispatch();
-  
+
   const progressBarRef = useRef<View>(null);
   const [isSeeking, setIsSeeking] = useState(false);
   const [seekProgress, setSeekProgress] = useState(0);
   const [seekTime, setSeekTime] = useState(0);
 
-  const isLiked = useAppSelector(state => 
+  const isLiked = useAppSelector(state =>
     state.playlist.playlists.find(p => p.id === 'liked')?.songs.some(s => s.id === currentSong?.id)
   ) || false;
   const displayProgress = isSeeking ? seekProgress : progress;
@@ -112,9 +102,9 @@ export const PlayerScreen = React.memo(({ navigation }: any) => {
 
   const getRepeatIcon = useCallback(() => {
     if (repeat === 'one') {
-      return <Repeat1 size={22} color={colors.primary} />;
+      return <Ionicons name="repeat" size={22} color={colors.primary} />;
     }
-    return <Repeat size={22} color={repeat === 'none' ? colors.textMuted : colors.primary} />;
+    return <Ionicons name="repeat" size={22} color={repeat === 'none' ? colors.textMuted : colors.primary} />;
   }, [repeat, colors]);
 
   if (!currentSong) {
@@ -134,11 +124,11 @@ export const PlayerScreen = React.memo(({ navigation }: any) => {
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerButton}>
-          <ChevronDown size={28} color={colors.text} />
+          <Ionicons name="chevron-down" size={28} color={colors.text} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.text }]}>Now Playing</Text>
         <TouchableOpacity style={styles.headerButton}>
-          <MoreHorizontal size={24} color={colors.text} />
+          <Ionicons name="ellipsis-horizontal" size={24} color={colors.text} />
         </TouchableOpacity>
       </View>
 
@@ -157,10 +147,10 @@ export const PlayerScreen = React.memo(({ navigation }: any) => {
           </Text>
         </View>
         <TouchableOpacity onPress={handleLikePress} style={styles.likeButton}>
-          <Heart 
-            size={24} 
-            color={isLiked ? colors.primary : colors.textMuted} 
-            fill={isLiked ? colors.primary : 'transparent'} 
+          <Ionicons
+            name={isLiked ? "heart" : "heart-outline"}
+            size={24}
+            color={isLiked ? colors.primary : colors.textMuted}
           />
         </TouchableOpacity>
       </View>
@@ -173,17 +163,17 @@ export const PlayerScreen = React.memo(({ navigation }: any) => {
             onPressIn={handleProgressPressIn}
             onPress={handleProgressPress}
           >
-            <View 
+            <View
               style={[
-                styles.progressBarFill, 
+                styles.progressBarFill,
                 { backgroundColor: colors.primary, width: `${displayProgress * 100}%` }
               ]}
             />
-            <View 
+            <View
               style={[
-                styles.progressDot, 
+                styles.progressDot,
                 { backgroundColor: colors.primary, left: `${displayProgress * 100}%` }
-              ]} 
+              ]}
             />
           </Pressable>
         </View>
@@ -198,26 +188,27 @@ export const PlayerScreen = React.memo(({ navigation }: any) => {
       </View>
 
       <View style={styles.controlsContainer}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.sideControl}
           onPress={() => dispatch(toggleShuffle())}
         >
-          <Shuffle 
-            size={22} 
-            color={shuffle ? colors.primary : colors.textMuted} 
+          <Ionicons
+            name="shuffle"
+            size={22}
+            color={shuffle ? colors.primary : colors.textMuted}
           />
         </TouchableOpacity>
-        
+
         <View style={styles.mainControls}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.skipButton}
-            onPress={() => dispatch(playPrevious())}
+            onPress={() => dispatch(skipPrevious())}
           >
-            <SkipBack size={32} color={colors.text} fill={colors.text} />
+            <Ionicons name="play-skip-back" size={32} color={colors.text} />
           </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={[styles.playButton, { backgroundColor: colors.primary }]} 
+
+          <TouchableOpacity
+            style={[styles.playButton, { backgroundColor: colors.primary }]}
             onPress={() => dispatch(togglePlayback())}
             activeOpacity={0.8}
             disabled={isLoading}
@@ -227,21 +218,21 @@ export const PlayerScreen = React.memo(({ navigation }: any) => {
                 <Text style={[styles.loadingText, { color: colors.background }]}>...</Text>
               </View>
             ) : isPlaying ? (
-              <Pause size={32} color={colors.background} fill={colors.background} />
+              <Ionicons name="pause" size={32} color={colors.background} />
             ) : (
-              <Play size={32} color={colors.background} fill={colors.background} />
+              <Ionicons name="play" size={32} color={colors.background} />
             )}
           </TouchableOpacity>
-          
-          <TouchableOpacity 
+
+          <TouchableOpacity
             style={styles.skipButton}
-            onPress={() => dispatch(playNext())}
+            onPress={() => dispatch(skipNext())}
           >
-            <SkipForward size={32} color={colors.text} fill={colors.text} />
+            <Ionicons name="play-skip-forward" size={32} color={colors.text} />
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.sideControl}
           onPress={() => dispatch(toggleRepeat())}
         >

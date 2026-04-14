@@ -2,10 +2,11 @@ import React from 'react';
 import { View, StyleSheet, Platform } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { HomeScreen, SearchScreen, LibraryScreen, ProfileScreen } from '../screens';
+import { HomeScreen, ExploreScreen, SearchScreen, LibraryScreen, ProfileScreen } from '../screens';
 import { SIZES, SPACING } from '../theme/theme';
 import { useAppSelector } from '../../application/store/hooks';
-import { Home, Search, Library, User } from 'lucide-react-native';
+import { Feather } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { MiniPlayer } from '../components/MiniPlayer';
 
 const Tab = createBottomTabNavigator();
@@ -23,7 +24,7 @@ export const TabNavigator = () => {
           tabBarShowLabel: true,
           tabBarStyle: [
             styles.tabBar,
-            { 
+            {
               backgroundColor: colors.glass,
               borderColor: 'rgba(255, 255, 255, 0.1)',
               borderWidth: 1,
@@ -36,32 +37,39 @@ export const TabNavigator = () => {
           },
         }}
       >
-        <Tab.Screen 
-          name="Home" 
-          component={HomeScreen} 
+        <Tab.Screen
+          name="Home"
+          component={HomeScreen}
           options={{
-            tabBarIcon: ({ color }) => <Home color={color} size={24} />,
+            tabBarIcon: ({ color }) => <Ionicons name="home" color={color} size={24} />,
           }}
         />
-        <Tab.Screen 
-          name="Search" 
-          component={SearchScreen} 
+        <Tab.Screen
+          name="Explore"
+          component={ExploreScreen}
           options={{
-            tabBarIcon: ({ color }) => <Search color={color} size={24} />,
+            tabBarIcon: ({ color }) => <Ionicons name="compass" color={color} size={24} />,
           }}
         />
-        <Tab.Screen 
-          name="Library" 
-          component={LibraryScreen} 
+        <Tab.Screen
+          name="Search"
+          component={SearchScreen}
           options={{
-            tabBarIcon: ({ color }) => <Library color={color} size={24} />,
+            tabBarIcon: ({ color }) => <Ionicons name="search" color={color} size={24} />,
           }}
         />
-        <Tab.Screen 
-          name="Profile" 
-          component={ProfileScreen} 
+        <Tab.Screen
+          name="Library"
+          component={LibraryScreen}
           options={{
-            tabBarIcon: ({ color }) => <User color={color} size={24} />,
+            tabBarIcon: ({ color }) => <Ionicons name="library" color={color} size={24} />,
+          }}
+        />
+        <Tab.Screen
+          name="Profile"
+          component={ProfileScreen}
+          options={{
+            tabBarIcon: ({ color }) => <Feather name="user" color={color} size={24} />,
           }}
         />
       </Tab.Navigator>

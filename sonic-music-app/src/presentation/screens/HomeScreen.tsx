@@ -1,11 +1,11 @@
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
-import { 
-  StyleSheet, 
-  Text, 
-  View, 
-  ScrollView, 
-  Image, 
-  TouchableOpacity,
+import {
+  StyleSheet,
+  Text,
+  View,
+  ScrollView,
+  Image,
+  TouchableOpacity, 
   RefreshControl,
 } from 'react-native';
 import { SafeContainer } from '../components/SafeContainer';
@@ -15,17 +15,18 @@ import { playSong } from '../../application/store/slices/playerSlice';
 import { MusicCard } from '../components/MusicCard';
 import { MiniPlayer } from '../components/MiniPlayer';
 import { SongCardSkeleton } from '../components/LoadingState';
-import { Bell, ChevronRight, FileMusic, Heart, ListMusic } from 'lucide-react-native';
+import { Feather } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { Song } from '../../domain/models/MusicModels';
 import { MusicApiService } from '../../data/services/MusicApiService';
 
 export const HomeScreen = ({ navigation }: any) => {
   const [refreshing, setRefreshing] = useState(false);
-  
+
   const { currentSong } = useAppSelector(state => state.player);
   const colors = useAppSelector(state => state.theme.colors);
   const dispatch = useAppDispatch();
-  
+
   const { data: homeData, loading, error, refetch, isRefreshing } = useHomeData();
 
   const popularSongs = useMemo(() => homeData?.popularSongs || [], [homeData?.popularSongs]);
@@ -103,8 +104,8 @@ export const HomeScreen = ({ navigation }: any) => {
         </View>
         <View style={styles.grid}>
           {newCollections.slice(0, 3).map((song: Song) => (
-            <TouchableOpacity 
-              key={song.id} 
+            <TouchableOpacity
+              key={song.id}
               style={[styles.collectionItem, { backgroundColor: colors.card }]}
               onPress={() => handleSongPress(song)}
             >
@@ -125,39 +126,39 @@ export const HomeScreen = ({ navigation }: any) => {
       <View style={styles.sectionHeader}>
         <Text style={[styles.sectionTitle, { color: colors.text }]}>Quick Access</Text>
       </View>
-      
-      <TouchableOpacity 
+
+      <TouchableOpacity
         style={[styles.quickAccessItem, { backgroundColor: colors.card }]}
         onPress={handleNavigateToLibrary}
       >
         <View style={[styles.quickAccessIcon, { backgroundColor: colors.secondary }]}>
-          <FileMusic size={24} color={colors.primary} />
+          <Ionicons name="musical-notes" size={24} color={colors.primary} />
         </View>
         <View style={styles.quickAccessInfo}>
           <Text style={[styles.quickAccessTitle, { color: colors.text }]}>Device Library</Text>
           <Text style={[styles.quickAccessSubtitle, { color: colors.textMuted }]}>Your local music</Text>
         </View>
-        <ChevronRight size={20} color={colors.textMuted} />
+        <Feather name="chevron-right" size={20} color={colors.textMuted} />
       </TouchableOpacity>
 
-      <TouchableOpacity 
+      <TouchableOpacity
         style={[styles.quickAccessItem, { backgroundColor: colors.card }]}
         onPress={() => navigation.navigate('Search')}
       >
         <View style={[styles.quickAccessIcon, { backgroundColor: colors.secondary }]}>
-          <ListMusic size={24} color={colors.primary} />
+          <Feather name="list" size={24} color={colors.primary} />
         </View>
         <View style={styles.quickAccessInfo}>
           <Text style={[styles.quickAccessTitle, { color: colors.text }]}>Browse Playlists</Text>
         </View>
-        <ChevronRight size={20} color={colors.textMuted} />
+        <Feather name="chevron-right" size={20} color={colors.textMuted} />
       </TouchableOpacity>
     </View>
   );
 
   return (
     <SafeContainer padTop={false} style={styles.container}>
-      <ScrollView 
+      <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
           styles.scrollContent,
@@ -179,12 +180,12 @@ export const HomeScreen = ({ navigation }: any) => {
           </View>
           <View style={styles.headerIcons}>
             <TouchableOpacity style={[styles.iconButton, { backgroundColor: colors.secondary }]}>
-              <Bell color={colors.text} size={20} />
+              <Feather name="bell" color={colors.text} size={20} />
             </TouchableOpacity>
             <TouchableOpacity style={styles.avatarContainer}>
-              <Image 
-                source={{ uri: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=100' }} 
-                style={styles.avatar} 
+              <Image
+                source={{ uri: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=100' }}
+                style={styles.avatar}
               />
             </TouchableOpacity>
           </View>
@@ -193,10 +194,10 @@ export const HomeScreen = ({ navigation }: any) => {
         {renderPopularSection()}
         {renderNewCollectionSection()}
         {renderQuickAccessSection()}
-        
+
         <View style={{ height: 120 }} />
       </ScrollView>
-      
+
       {currentSong && <MiniPlayer onPress={handleMiniPlayerPress} />}
     </SafeContainer>
   );

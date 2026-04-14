@@ -3,7 +3,7 @@ import { StyleSheet, Text, Image, TouchableOpacity, View } from 'react-native';
 import { Song } from '../../domain/models/MusicModels';
 import { SPACING, SIZES } from '../theme/theme';
 import { useAppSelector } from '../../application/store/hooks';
-import { Play } from 'lucide-react-native';
+import { Ionicons } from '@expo/vector-icons';
 
 interface MusicCardProps {
   song: Song;
@@ -13,10 +13,10 @@ interface MusicCardProps {
 
 export const MusicCard: React.FC<MusicCardProps> = ({ song, onPress, width = 160 }) => {
   const colors = useAppSelector(state => state.theme.colors);
-  
+
   return (
-    <TouchableOpacity 
-      style={[styles.container, { width, backgroundColor: colors.card }]} 
+    <TouchableOpacity
+      style={[styles.container, { width, backgroundColor: colors.card }]}
       onPress={() => onPress(song)}
       activeOpacity={0.8}
     >
@@ -26,7 +26,7 @@ export const MusicCard: React.FC<MusicCardProps> = ({ song, onPress, width = 160
         <Text style={[styles.artist, { color: colors.textMuted }]} numberOfLines={1}>{song.artist}</Text>
       </View>
       <View style={[styles.playButton, { backgroundColor: colors.primary }]}>
-        <Play size={16} color={colors.background} fill={colors.background} />
+        <Ionicons name="play" size={16} color={colors.background} />
       </View>
     </TouchableOpacity>
   );
