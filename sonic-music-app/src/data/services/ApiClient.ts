@@ -2,8 +2,8 @@ import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
 import { Platform } from 'react-native';
 
 const getApiBaseUrl = () => {
-  if (Platform.OS === 'web') return 'https://f1rr36mb-3000.inc1.devtunnels.ms/api';
-  return 'https://f1rr36mb-3000.inc1.devtunnels.ms/api';
+  if (Platform.OS === 'web') return 'https://sonic-music-rose.vercel.app/api';
+  return 'https://sonic-music-rose.vercel.app/api';
 };
 
 const apiClient: AxiosInstance = axios.create({
