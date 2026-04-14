@@ -78,7 +78,7 @@ class CircuitBreaker {
     } catch (error) {
       this.onFailure(key, stats);
       
-      if (fallback && stats.state === 'OPEN') {
+      if (fallback && (stats as any).state === 'OPEN') {
         logger.info('Using fallback after circuit opened', { key });
         return fallback();
       }

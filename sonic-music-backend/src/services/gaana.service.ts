@@ -89,7 +89,7 @@ export async function searchGaana(query: string, limit = 20): Promise<ServiceRes
     return await withCircuitBreaker(
       `${CIRCUIT_BREAKER_KEY}:search`,
       () => withRetry(fetchFn, { maxRetries: MAX_RETRIES }),
-      () => ({ data: [], source: 'gaana' as const, error: 'Service temporarily unavailable' })
+      async () => ({ data: [], source: 'gaana' as const })
     );
   } catch (err) {
     logger.error('GaanaPy search error', {
