@@ -301,28 +301,61 @@ function normalizeAlbum(album: GaanaAlbum): any {
   };
 }
 
+interface GaanaChart {
+  seokey: string;
+  playlist_id: string;
+  title: string;
+  language?: string;
+  favorite_count?: number;
+  is_explicit?: boolean;
+  play_count?: string;
+  playlist_url?: string;
+  images: {
+    urls: {
+      large_artwork: string;
+      medium_artwork: string;
+      small_artwork: string;
+    };
+  };
+}
+
+function normalizeChartToAlbum(chart: GaanaChart): any {
+  const artwork = chart.images?.urls?.medium_artwork || chart.images?.urls?.small_artwork || '';
+  return {
+    id: `gn_playlist_${chart.playlist_id}`,
+    title: chart.title || 'Unknown Playlist',
+    artist: chart.language ? `${chart.language} Music` : 'Gaana',
+    coverUrl: artwork,
+    artwork,
+    source: 'gaana',
+    type: 'album',
+    language: chart.language,
+    playlistUrl: chart.playlist_url,
+  };
+}
+
 export async function getAlbumsGaana(page = 1, limit = 20): Promise<ServiceResponse<any[]>> {
   const fetchFn = async () => {
     const response = await withTimeout(
-      axios.get(`${GAANAPY_URL}/albums`, {
-        params: { page, limit },
+      axios.get(`${GAANAPY_URL}/charts`, {
+        params: { limit },
         timeout: Number(process.env.API_TIMEOUT) || 7000,
       }),
       Number(process.env.API_TIMEOUT) || 7000,
-      'GaanaPy albums timeout'
+      'GaanaPy charts timeout'
     );
 
-    const albums: GaanaAlbum[] = Array.isArray(response.data) 
+    const charts: GaanaChart[] = Array.isArray(response.data) 
       ? response.data 
-      : response.data.albums || response.data.results || [];
+      : response.data.results || [];
 
-    if (!albums.length) {
-      logger.warn('No albums found from GaanaPy');
+    if (!charts.length) {
+      logger.warn('No charts found from GaanaPy');
       return { data: [], source: 'gaana' as const };
     }
 
     return {
-      data: albums.slice(0, limit).map(normalizeAlbum),
+      data: charts.slice(0, limit).map(normalizeChartToAlbum),
       source: 'gaana' as const,
     };
   };
