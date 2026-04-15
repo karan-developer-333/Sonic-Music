@@ -1,29 +1,24 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { z } from 'zod';
 import { cache } from '@/cache/redis.cache';
-import { getAlbumsGaana } from '@/services/gaana.service';
+import { searchNepotuneAlbums } from '@/services/nepotune.service';
 import { logger } from '@/utils/logger';
-
-const albumsSchema = z.object({
-  page: z.coerce.number().min(1).default(1),
-  limit: z.coerce.number().min(1).max(50).default(20),
-});
+import type { NormalizedAlbum } from '@/types/music';
 
 export async function GET(request: NextRequest) {
+  const startTime = Date.now();
+  
   try {
     const { searchParams } = new URL(request.url);
-    const params = {
-      page: searchParams.get('page') || '1',
-      limit: searchParams.get('limit') || '20',
-    };
+    const page = parseInt(searchParams.get('page') || '1');
+    const limit = parseInt(searchParams.get('limit') || '20');
+    const language = searchParams.get('language') || 'hindi';
 
-    const validated = albumsSchema.parse(params);
-    const cacheKey = `albums:page:${validated.page}:limit:${validated.limit}`;
+    const cacheKey = `nepotune:albums:p${page}:l${limit}:${language}`;
 
     const cached = await cache.get<{
-      items: any[];
+      items: NormalizedAlbum[];
       page: number;
       limit: number;
       total: number;
@@ -31,60 +26,35 @@ export async function GET(request: NextRequest) {
     }>(cacheKey);
 
     if (cached) {
-      logger.info('Returning cached albums', { page: validated.page });
-      return NextResponse.json({
-        ...cached,
-        cached: true,
-      });
+      logger.info('Albums cache hit', { duration: Date.now() - startTime });
+      return NextResponse.json({ ...cached, cached: true });
     }
 
-    logger.info('Fetching albums', { page: validated.page });
+    logger.info('Fetching albums', { page, language });
 
-    const result = await getAlbumsGaana(validated.page, validated.limit * 2);
+    const result = await searchNepotuneAlbums(`${language} album`, page, limit);
 
-    if (result.error || !result.data) {
-      logger.error('GaanaPy albums failed', { error: result.error });
-      return NextResponse.json(
-        { error: 'Failed to fetch albums' },
-        { status: 500 }
-      );
-    }
-
-    const albums = result.data;
     const startIndex = 0;
-    const endIndex = validated.limit;
-    const paginatedAlbums = albums.slice(startIndex, endIndex);
-    const total = albums.length;
+    const endIndex = limit;
+    const paginatedAlbums = result.albums.slice(startIndex, endIndex);
+    const total = result.total;
     const hasMore = endIndex < total;
 
     const response = {
       items: paginatedAlbums,
-      page: validated.page,
-      limit: validated.limit,
+      page,
+      limit,
       total,
       hasMore,
     };
 
     await cache.set(cacheKey, response, 10 * 60);
 
-    logger.info('Albums fetched', { count: paginatedAlbums.length, page: validated.page });
+    logger.info('Albums fetched', { count: paginatedAlbums.length, duration: Date.now() - startTime });
 
-    return NextResponse.json({
-      ...response,
-      cached: false,
-    });
+    return NextResponse.json({ ...response, cached: false });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: error.errors[0].message },
-        { status: 400 }
-      );
-    }
-    
     logger.error('Albums error', { error: (error as Error).message });
-    return NextResponse.json(
-      { error: 'Failed to fetch albums' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to fetch albums' }, { status: 500 });
   }
 }

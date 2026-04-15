@@ -1,16 +1,17 @@
-import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useMemo, useRef, useEffect, memo } from 'react';
 import {
   StyleSheet,
   Text,
   View,
   ScrollView,
   Image,
-  TouchableOpacity, 
+  TouchableOpacity,
   RefreshControl,
+  Dimensions,
 } from 'react-native';
 import { SafeContainer } from '../components/SafeContainer';
 import { SPACING, SIZES } from '../theme/theme';
-import { useAppSelector, useAppDispatch } from '../../application/store/hooks';
+import { useAppSelector, useAppDispatch, selectCurrentSong, selectThemeColors } from '../../application/store/hooks';
 import { playSong } from '../../application/store/slices/playerSlice';
 import { MusicCard } from '../components/MusicCard';
 import { MiniPlayer } from '../components/MiniPlayer';
@@ -20,141 +21,212 @@ import { Ionicons } from '@expo/vector-icons';
 import { Song } from '../../domain/models/MusicModels';
 import { MusicApiService } from '../../data/services/MusicApiService';
 
-export const HomeScreen = ({ navigation }: any) => {
-  const [refreshing, setRefreshing] = useState(false);
+const { width } = Dimensions.get('window');
 
-  const { currentSong } = useAppSelector(state => state.player);
-  const colors = useAppSelector(state => state.theme.colors);
+interface HomeData {
+  popularSongs: Song[];
+  trendingSongs: Song[];
+  newReleases: Song[];
+  topCharts: Song[];
+  romanticHindi: Song[];
+  popularAlbums: any[];
+  hindiSongs: Song[];
+}
+
+interface SectionHeaderProps {
+  title: string;
+  onSeeAll?: () => void;
+  colors: any;
+}
+
+const SectionHeader = memo<SectionHeaderProps>(({ title, onSeeAll, colors }) => (
+  <View style={styles.sectionHeader}>
+    <Text style={[styles.sectionTitle, { color: colors.text }]}>{title}</Text>
+    {onSeeAll && (
+      <TouchableOpacity onPress={onSeeAll}>
+        <Text style={[styles.seeAll, { color: colors.primary }]}>See All</Text>
+      </TouchableOpacity>
+    )}
+  </View>
+));
+
+SectionHeader.displayName = 'SectionHeader';
+
+interface HorizontalSongListProps {
+  songs: Song[];
+  queue: Song[];
+  onSongPress: (song: Song, queue: Song[]) => void;
+  colors: any;
+}
+
+const HorizontalSongList = memo<HorizontalSongListProps>(({ songs, queue, onSongPress, colors }) => {
+  if (!songs.length) return null;
+
+  return (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalList}>
+      {songs.map((song) => (
+        <MusicCard key={song.id} song={song} onPress={(s) => onSongPress(s, queue)} />
+      ))}
+    </ScrollView>
+  );
+});
+
+HorizontalSongList.displayName = 'HorizontalSongList';
+
+interface AlbumCardProps {
+  album: any;
+  onPress: (albumId: string) => void;
+  colors: any;
+}
+
+const AlbumCard = memo<AlbumCardProps>(({ album, onPress, colors }) => (
+  <TouchableOpacity
+    style={[styles.albumCard, { backgroundColor: colors.card }]}
+    onPress={() => onPress(album.id)}
+    activeOpacity={0.7}
+  >
+    <Image source={{ uri: album.coverUrl || album.thumbnail }} style={styles.albumImage} />
+    <Text style={[styles.albumTitle, { color: colors.text }]} numberOfLines={1}>{album.title}</Text>
+  </TouchableOpacity>
+));
+
+AlbumCard.displayName = 'AlbumCard';
+
+const DEBOUNCE_MS = 300;
+
+function useDebounce(callback: () => void, delay: number) {
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const callbackRef = useRef(callback);
+  
+  callbackRef.current = callback;
+
+  const debouncedCallback = useCallback(() => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    timeoutRef.current = setTimeout(() => {
+      callbackRef.current();
+    }, delay);
+  }, [delay]);
+
+  return debouncedCallback;
+}
+
+const HomeScreen = memo(({ navigation }: any) => {
+  const [refreshing, setRefreshing] = useState(false);
   const dispatch = useAppDispatch();
+  
+  const currentSong = useAppSelector(selectCurrentSong);
+  const colors = useAppSelector(selectThemeColors);
 
   const { data: homeData, loading, error, refetch, isRefreshing } = useHomeData();
 
-  const popularSongs = useMemo(() => homeData?.popularSongs || [], [homeData?.popularSongs]);
-  const newCollections = useMemo(() => homeData?.newReleases || [], [homeData?.newReleases]);
+  const debouncedRefetch = useDebounce(refetch, DEBOUNCE_MS);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
-    await refetch();
+    MusicApiService.invalidateHomeCache();
+    await debouncedRefetch();
     setRefreshing(false);
-  }, [refetch]);
+  }, [debouncedRefetch]);
 
-  const handleSongPress = (song: Song) => {
-    const queue = popularSongs.length > 0 ? popularSongs : [];
+  const handleSongPress = useCallback((song: Song, queue: Song[]) => {
     dispatch(playSong({ song, queue }));
-  };
+  }, [dispatch]);
 
-  const handleMiniPlayerPress = () => navigation.navigate('Player');
-  const handleNavigateToLibrary = () => navigation.navigate('Library');
-  const handleNavigateToPlaylist = (playlistId: string) => navigation.navigate('PlaylistDetail', { playlistId });
+  const handleMiniPlayerPress = useCallback(() => navigation.navigate('Player'), [navigation]);
+  const handleNavigateToExplore = useCallback(() => navigation.navigate('Explore'), [navigation]);
+  const handleNavigateToSearch = useCallback(() => navigation.navigate('Search'), [navigation]);
+  const handleNavigateToAlbum = useCallback((albumId: string) => navigation.navigate('AlbumDetail', { albumId }), [navigation]);
 
-  const renderPopularSection = () => {
-    if (loading && !homeData) {
-      return (
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Popular Songs</Text>
-          </View>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalList}>
-            {[1, 2, 3].map((i) => <SongCardSkeleton key={i} />)}
-          </ScrollView>
-        </View>
-      );
-    }
+  const renderSkeleton = useCallback(() => (
+    <View style={styles.section}>
+      <View style={styles.sectionHeader}>
+        <View style={[styles.skeletonTitle, { backgroundColor: colors.skeleton }]} />
+      </View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalList}>
+        {[1, 2, 3, 4, 5].map((i) => <SongCardSkeleton key={i} />)}
+      </ScrollView>
+    </View>
+  ), [colors]);
 
-    if (error) {
-      return (
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Popular Songs</Text>
-          </View>
-          <Text style={{ color: colors.textMuted, paddingHorizontal: SPACING.lg }}>Error loading songs</Text>
-        </View>
-      );
-    }
-
-    if (!popularSongs.length) return null;
+  const renderAlbumGrid = useCallback((albums: any[]) => {
+    if (!albums.length) return null;
 
     return (
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Popular Songs</Text>
-          <TouchableOpacity onPress={() => navigation.navigate('Search')}>
-            <Text style={[styles.seeAll, { color: colors.primary }]}>See All</Text>
-          </TouchableOpacity>
-        </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalList}>
-          {popularSongs.map((song: Song) => (
-            <MusicCard key={song.id} song={song} onPress={handleSongPress} />
-          ))}
-        </ScrollView>
+      <View style={styles.albumGrid}>
+        {albums.slice(0, 4).map((album) => (
+          <AlbumCard key={album.id} album={album} onPress={handleNavigateToAlbum} colors={colors} />
+        ))}
       </View>
     );
-  };
+  }, [handleNavigateToAlbum, colors]);
 
-  const renderNewCollectionSection = () => {
-    if (!newCollections.length) return null;
+  const renderQuickMixSection = useCallback(() => {
+    const mixes = [
+      { title: 'Hindi Mix', icon: 'headset', color: '#E91E63' },
+      { title: 'Romantic', icon: 'heart', color: '#FF5722' },
+      { title: 'Workout', icon: 'flash', color: '#2196F3' },
+      { title: 'Chill', icon: 'leaf', color: '#4CAF50' },
+    ];
 
     return (
       <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>New Releases</Text>
-          <TouchableOpacity onPress={() => navigation.navigate('Search')}>
-            <Text style={[styles.seeAll, { color: colors.primary }]}>See All</Text>
-          </TouchableOpacity>
-        </View>
-        <View style={styles.grid}>
-          {newCollections.slice(0, 3).map((song: Song) => (
+        <SectionHeader title="Quick Mixes" onSeeAll={handleNavigateToExplore} colors={colors} />
+        <View style={styles.mixesGrid}>
+          {mixes.map((mix, index) => (
             <TouchableOpacity
-              key={song.id}
-              style={[styles.collectionItem, { backgroundColor: colors.card }]}
-              onPress={() => handleSongPress(song)}
+              key={index}
+              style={[styles.mixCard, { backgroundColor: mix.color }]}
+              onPress={handleNavigateToSearch}
             >
-              <Image source={{ uri: song.coverUrl }} style={styles.collectionCover} />
-              <View style={styles.collectionInfo}>
-                <Text style={[styles.collectionTitle, { color: colors.text }]} numberOfLines={1}>{song.title}</Text>
-                <Text style={[styles.collectionArtist, { color: colors.textMuted }]} numberOfLines={1}>{song.artist}</Text>
-              </View>
+              <Ionicons name={mix.icon as any} size={24} color="#fff" />
+              <Text style={styles.mixTitle}>{mix.title}</Text>
             </TouchableOpacity>
           ))}
         </View>
       </View>
     );
-  };
+  }, [handleNavigateToExplore, handleNavigateToSearch, colors]);
 
-  const renderQuickAccessSection = () => (
-    <View style={styles.section}>
-      <View style={styles.sectionHeader}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Quick Access</Text>
-      </View>
+  if (loading && !homeData) {
+    return (
+      <SafeContainer padTop={false} style={styles.container}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+          <View style={styles.header}>
+            <Text style={[styles.greeting, { color: colors.textMuted }]}>Good Evening,</Text>
+            <Text style={[styles.username, { color: colors.text }]}>Sonic Listener</Text>
+          </View>
+          {renderSkeleton()}
+          {renderSkeleton()}
+          {renderSkeleton()}
+        </ScrollView>
+      </SafeContainer>
+    );
+  }
 
-      <TouchableOpacity
-        style={[styles.quickAccessItem, { backgroundColor: colors.card }]}
-        onPress={handleNavigateToLibrary}
-      >
-        <View style={[styles.quickAccessIcon, { backgroundColor: colors.secondary }]}>
-          <Ionicons name="musical-notes" size={24} color={colors.primary} />
-        </View>
-        <View style={styles.quickAccessInfo}>
-          <Text style={[styles.quickAccessTitle, { color: colors.text }]}>Device Library</Text>
-          <Text style={[styles.quickAccessSubtitle, { color: colors.textMuted }]}>Your local music</Text>
-        </View>
-        <Feather name="chevron-right" size={20} color={colors.textMuted} />
-      </TouchableOpacity>
+  if (error && !homeData) {
+    return (
+      <SafeContainer padTop={false} style={styles.container}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+          <View style={styles.errorContainer}>
+            <Ionicons name="alert-circle" size={48} color={colors.error} />
+            <Text style={[styles.errorText, { color: colors.text }]}>Failed to load content</Text>
+            <TouchableOpacity style={[styles.retryButton, { backgroundColor: colors.primary }]} onPress={handleRefresh}>
+              <Text style={styles.retryText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </SafeContainer>
+    );
+  }
 
-      <TouchableOpacity
-        style={[styles.quickAccessItem, { backgroundColor: colors.card }]}
-        onPress={() => navigation.navigate('Search')}
-      >
-        <View style={[styles.quickAccessIcon, { backgroundColor: colors.secondary }]}>
-          <Feather name="list" size={24} color={colors.primary} />
-        </View>
-        <View style={styles.quickAccessInfo}>
-          <Text style={[styles.quickAccessTitle, { color: colors.text }]}>Browse Playlists</Text>
-        </View>
-        <Feather name="chevron-right" size={20} color={colors.textMuted} />
-      </TouchableOpacity>
-    </View>
-  );
+  const popularSongs = homeData?.popularSongs || homeData?.hindiSongs || [];
+  const trendingSongs = homeData?.trendingSongs || [];
+  const newReleases = homeData?.newReleases || [];
+  const romanticHindi = homeData?.romanticHindi || [];
+  const topCharts = homeData?.topCharts || [];
+  const popularAlbums = homeData?.popularAlbums || [];
 
   return (
     <SafeContainer padTop={false} style={styles.container}>
@@ -179,8 +251,8 @@ export const HomeScreen = ({ navigation }: any) => {
             <Text style={[styles.username, { color: colors.text }]}>Sonic Listener</Text>
           </View>
           <View style={styles.headerIcons}>
-            <TouchableOpacity style={[styles.iconButton, { backgroundColor: colors.secondary }]}>
-              <Feather name="bell" color={colors.text} size={20} />
+            <TouchableOpacity style={[styles.iconButton, { backgroundColor: colors.secondary }]} onPress={handleNavigateToSearch}>
+              <Feather name="search" color={colors.text} size={20} />
             </TouchableOpacity>
             <TouchableOpacity style={styles.avatarContainer}>
               <Image
@@ -191,9 +263,49 @@ export const HomeScreen = ({ navigation }: any) => {
           </View>
         </View>
 
-        {renderPopularSection()}
-        {renderNewCollectionSection()}
-        {renderQuickAccessSection()}
+        {renderQuickMixSection()}
+
+        {popularSongs.length > 0 && (
+          <View style={styles.section}>
+            <SectionHeader title="Popular Hindi Music" onSeeAll={handleNavigateToExplore} colors={colors} />
+            <HorizontalSongList songs={popularSongs} queue={popularSongs} onSongPress={handleSongPress} colors={colors} />
+          </View>
+        )}
+
+        {trendingSongs.length > 0 && (
+          <View style={styles.section}>
+            <SectionHeader title="Trending Now" onSeeAll={handleNavigateToExplore} colors={colors} />
+            <HorizontalSongList songs={trendingSongs} queue={trendingSongs} onSongPress={handleSongPress} colors={colors} />
+          </View>
+        )}
+
+        {newReleases.length > 0 && (
+          <View style={styles.section}>
+            <SectionHeader title="New Releases" onSeeAll={handleNavigateToExplore} colors={colors} />
+            <HorizontalSongList songs={newReleases} queue={newReleases} onSongPress={handleSongPress} colors={colors} />
+          </View>
+        )}
+
+        {romanticHindi.length > 0 && (
+          <View style={styles.section}>
+            <SectionHeader title="Romantic Hindi" onSeeAll={handleNavigateToSearch} colors={colors} />
+            <HorizontalSongList songs={romanticHindi} queue={romanticHindi} onSongPress={handleSongPress} colors={colors} />
+          </View>
+        )}
+
+        {topCharts.length > 0 && (
+          <View style={styles.section}>
+            <SectionHeader title="Top Charts" onSeeAll={handleNavigateToExplore} colors={colors} />
+            <HorizontalSongList songs={topCharts} queue={topCharts} onSongPress={handleSongPress} colors={colors} />
+          </View>
+        )}
+
+        {popularAlbums.length > 0 && (
+          <View style={styles.section}>
+            <SectionHeader title="Popular Albums" onSeeAll={handleNavigateToExplore} colors={colors} />
+            {renderAlbumGrid(popularAlbums)}
+          </View>
+        )}
 
         <View style={{ height: 120 }} />
       </ScrollView>
@@ -201,7 +313,9 @@ export const HomeScreen = ({ navigation }: any) => {
       {currentSong && <MiniPlayer onPress={handleMiniPlayerPress} />}
     </SafeContainer>
   );
-};
+});
+
+HomeScreen.displayName = 'HomeScreen';
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
@@ -212,7 +326,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: SPACING.lg,
-    marginBottom: SPACING.xl,
+    marginBottom: SPACING.lg,
     paddingTop: SPACING.md,
   },
   greeting: { fontSize: 14 },
@@ -231,34 +345,78 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.lg,
     marginBottom: SPACING.md,
   },
-  sectionTitle: { fontSize: 20, fontWeight: 'bold' },
-  seeAll: { fontSize: 14 },
-  horizontalList: { paddingLeft: SPACING.lg },
-  grid: { paddingHorizontal: SPACING.lg },
-  collectionItem: {
-    flexDirection: 'row', alignItems: 'center', borderRadius: SIZES.radius,
-    marginBottom: SPACING.md, padding: SPACING.sm,
+  sectionTitle: { fontSize: 22, fontWeight: 'bold' },
+  seeAll: { fontSize: 14, fontWeight: '600' },
+  horizontalList: { paddingLeft: SPACING.lg, paddingRight: SPACING.md },
+  skeletonTitle: { width: 120, height: 24, borderRadius: 4 },
+  albumGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: SPACING.lg,
+    gap: SPACING.sm,
   },
-  collectionCover: { width: 60, height: 60, borderRadius: 12, marginRight: SPACING.md },
-  collectionInfo: { flex: 1 },
-  collectionTitle: { fontSize: 16, fontWeight: 'bold' },
-  collectionArtist: { fontSize: 14, marginTop: 2 },
-  quickAccessItem: {
-    flexDirection: 'row', alignItems: 'center', marginHorizontal: SPACING.lg, marginBottom: SPACING.md,
-    padding: SPACING.md, borderRadius: SIZES.radius,
+  albumCard: {
+    width: (width - SPACING.lg * 2 - SPACING.sm) / 2,
+    borderRadius: SIZES.radius,
+    overflow: 'hidden',
   },
-  quickAccessIcon: {
-    width: 50, height: 50, borderRadius: 12, alignItems: 'center', justifyContent: 'center',
+  albumImage: {
+    width: '100%',
+    aspectRatio: 1,
   },
-  quickAccessInfo: { flex: 1, marginLeft: SPACING.md },
-  quickAccessTitle: { fontSize: 16, fontWeight: '600' },
-  quickAccessSubtitle: { fontSize: 14, marginTop: 2 },
+  albumTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    padding: SPACING.sm,
+  },
+  mixesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: SPACING.lg,
+    gap: SPACING.sm,
+  },
+  mixCard: {
+    width: (width - SPACING.lg * 2 - SPACING.sm) / 2,
+    padding: SPACING.md,
+    borderRadius: SIZES.radius,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  mixTitle: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+    flex: 1,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: SPACING.xxl * 2,
+  },
+  errorText: {
+    fontSize: 18,
+    marginTop: SPACING.md,
+    marginBottom: SPACING.lg,
+  },
+  retryButton: {
+    paddingHorizontal: SPACING.xl,
+    paddingVertical: SPACING.md,
+    borderRadius: 20,
+  },
+  retryText: {
+    color: '#000',
+    fontWeight: '600',
+    fontSize: 16,
+  },
 });
 
+export { HomeScreen };
 export default HomeScreen;
 
 function useHomeData() {
-  const [homeData, setHomeData] = useState<any>(null);
+  const [homeData, setHomeData] = useState<HomeData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -273,13 +431,67 @@ function useHomeData() {
       else setLoading(true);
       setError(null);
 
-      const [popularSongs, newReleases, categories] = await Promise.allSettled([
-        MusicApiService.getPopularSongs(10),
-        MusicApiService.getNewReleases(10),
-        MusicApiService.getCategories(),
-      ]).then(results => results.map((r) => (r.status === 'fulfilled' ? r.value : [])));
+      const data = await MusicApiService.getHomeData();
 
-      setHomeData({ popularSongs, newReleases, categories, localSongs: [] });
+      if (data) {
+        setHomeData({
+          popularSongs: (data.popularSongs || data.hindiSongs || []).map((s: any) => ({
+            ...s,
+            id: s.id,
+            title: s.title,
+            artist: s.artist,
+            coverUrl: s.thumbnail || s.coverUrl || '',
+            audioUrl: s.streamUrl || s.audioUrl || '',
+            duration: s.duration || 0,
+          })),
+          trendingSongs: (data.trendingSongs || []).map((s: any) => ({
+            ...s,
+            id: s.id,
+            title: s.title,
+            artist: s.artist,
+            coverUrl: s.thumbnail || s.coverUrl || '',
+            audioUrl: s.streamUrl || s.audioUrl || '',
+            duration: s.duration || 0,
+          })),
+          newReleases: (data.newReleases || []).map((s: any) => ({
+            ...s,
+            id: s.id,
+            title: s.title,
+            artist: s.artist,
+            coverUrl: s.thumbnail || s.coverUrl || '',
+            audioUrl: s.streamUrl || s.audioUrl || '',
+            duration: s.duration || 0,
+          })),
+          topCharts: (data.topCharts || []).map((s: any) => ({
+            ...s,
+            id: s.id,
+            title: s.title,
+            artist: s.artist,
+            coverUrl: s.thumbnail || s.coverUrl || '',
+            audioUrl: s.streamUrl || s.audioUrl || '',
+            duration: s.duration || 0,
+          })),
+          romanticHindi: (data.romanticHindi || []).map((s: any) => ({
+            ...s,
+            id: s.id,
+            title: s.title,
+            artist: s.artist,
+            coverUrl: s.thumbnail || s.coverUrl || '',
+            audioUrl: s.streamUrl || s.audioUrl || '',
+            duration: s.duration || 0,
+          })),
+          popularAlbums: data.popularAlbums || [],
+          hindiSongs: (data.hindiSongs || []).map((s: any) => ({
+            ...s,
+            id: s.id,
+            title: s.title,
+            artist: s.artist,
+            coverUrl: s.thumbnail || s.coverUrl || '',
+            audioUrl: s.streamUrl || s.audioUrl || '',
+            duration: s.duration || 0,
+          })),
+        });
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch home data');
     } finally {

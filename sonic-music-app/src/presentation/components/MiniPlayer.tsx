@@ -1,4 +1,4 @@
-import React, { useCallback, memo } from 'react';
+import React, { useCallback, memo, useRef, useState, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
@@ -8,9 +8,36 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SPACING, SIZES } from '../theme/theme';
-import { useAppSelector, useAppDispatch } from '../../application/store/hooks';
+import {
+  useAppSelector,
+  useAppDispatch,
+  selectCurrentSong,
+  selectIsPlaying,
+  selectThemeColors,
+} from '../../application/store/hooks';
 import { skipNext, togglePlayback } from '../../application/store/slices/playerSlice';
+import { PlaybackService } from '../../application/services/PlaybackService';
 import { Ionicons } from '@expo/vector-icons';
+
+const DEBOUNCE_MS = 300;
+
+function useDebounce(callback: () => void, delay: number) {
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const callbackRef = useRef(callback);
+  
+  callbackRef.current = callback;
+
+  const debouncedCallback = useCallback(() => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    timeoutRef.current = setTimeout(() => {
+      callbackRef.current();
+    }, delay);
+  }, [delay]);
+
+  return debouncedCallback;
+}
 
 interface MiniPlayerProps {
   onPress: () => void;
@@ -18,21 +45,53 @@ interface MiniPlayerProps {
 
 export const MiniPlayer: React.FC<MiniPlayerProps> = memo(({ onPress }) => {
   const insets = useSafeAreaInsets();
-  const { currentSong, isPlaying, progress } = useAppSelector(state => state.player);
-  const colors = useAppSelector(state => state.theme.colors);
   const dispatch = useAppDispatch();
+  
+  const currentSong = useAppSelector(selectCurrentSong);
+  const isPlaying = useAppSelector(selectIsPlaying);
+  const colors = useAppSelector(selectThemeColors);
+  const [localProgress, setLocalProgress] = useState(0);
 
   const bottomOffset = SIZES.tabBarHeight + insets.bottom + SPACING.md;
 
+  useEffect(() => {
+    const playbackService = PlaybackService.getInstance();
+    
+    const callbackId = playbackService.setStatusCallback((status) => {
+      if (status.isLoaded) {
+        const progress = status.positionMillis / (status.durationMillis || 1);
+        setLocalProgress(progress);
+      }
+    });
+
+    return () => {
+      playbackService.removeStatusCallback(callbackId);
+    };
+  }, []);
+
+  const debouncedTogglePlayPause = useDebounce(
+    useCallback(() => {
+      dispatch(togglePlayback());
+    }, [dispatch]),
+    DEBOUNCE_MS
+  );
+
+  const debouncedPlayNext = useDebounce(
+    useCallback(() => {
+      dispatch(skipNext());
+    }, [dispatch]),
+    DEBOUNCE_MS
+  );
+
   const handleTogglePlayPause = useCallback((e: any) => {
     e.stopPropagation();
-    dispatch(togglePlayback());
-  }, [dispatch]);
+    debouncedTogglePlayPause();
+  }, [debouncedTogglePlayPause]);
 
   const handlePlayNext = useCallback((e: any) => {
     e.stopPropagation();
-    dispatch(skipNext());
-  }, [dispatch]);
+    debouncedPlayNext();
+  }, [debouncedPlayNext]);
 
   if (!currentSong) return null;
 
@@ -52,7 +111,7 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = memo(({ onPress }) => {
         <View
           style={[
             styles.progress,
-            { backgroundColor: colors.primary, width: `${progress * 100}%` }
+            { backgroundColor: colors.primary, width: `${localProgress * 100}%` }
           ]}
         />
       </View>

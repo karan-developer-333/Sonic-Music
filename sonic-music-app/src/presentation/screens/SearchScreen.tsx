@@ -8,8 +8,9 @@ import {
   Image,
   TouchableOpacity,
   FlatList,
-  Keyboard, 
+  Keyboard,
   ActivityIndicator,
+  SectionList,
 } from 'react-native';
 import { SafeContainer } from '../components/SafeContainer';
 import { SPACING, SIZES } from '../theme/theme';
@@ -19,91 +20,76 @@ import { MusicApiService } from '../../data/services/MusicApiService';
 import { MiniPlayer } from '../components/MiniPlayer';
 import { Ionicons } from '@expo/vector-icons';
 import { CategoryChip } from '../components/CategoryChip';
-import { Song } from '../../domain/models/MusicModels';
+import { Song, Album } from '../../domain/models/MusicModels';
 
 const DEBOUNCE_DELAY = 300;
 const MIN_QUERY_LENGTH = 2;
 
-const TRENDING_SEARCHES = ['Bollywood Hits', 'Arijit Singh', 'Armaan Malik', 'Romantic Songs', 'Devotional'];
+const TRENDING_SEARCHES = ['Bollywood Hits', 'Arijit Singh', 'Armaan Malik', 'Romantic Songs', 'Yo Yo Honey Singh'];
 const GENRE_SUGGESTIONS = ['Bollywood', 'Punjabi', 'Tamil', 'Telugu', 'Bengali', 'Marathi', 'Indie Pop'];
+
+interface SearchResult {
+  type: 'song' | 'album' | 'artist';
+  id: string;
+  title: string;
+  subtitle?: string;
+  image?: string;
+  coverUrl?: string;
+}
 
 export const SearchScreen = ({ navigation }: any) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
-  const [selectedGenre, setSelectedGenre] = useState<string | null>(null);
-  const [searchResults, setSearchResults] = useState<Song[]>([]);
-  const [suggestions, setSuggestions] = useState<string[]>([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [searchResults, setSearchResults] = useState<{
+    songs: Song[];
+    albums: Album[];
+    artists: any[];
+  }>({ songs: [], albums: [], artists: [] });
   const [searchLoading, setSearchLoading] = useState(false);
-  const [suggestionLoading, setSuggestionLoading] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
 
   const { currentSong } = useAppSelector(state => state.player);
   const colors = useAppSelector(state => state.theme.colors);
   const dispatch = useAppDispatch();
 
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const suggestionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const inputRef = useRef<TextInput>(null);
 
   const handleSearchChange = useCallback((text: string) => {
     setSearchQuery(text);
-    if (selectedGenre) setSelectedGenre(null);
 
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
     abortControllerRef.current = new AbortController();
 
-    if (suggestionTimer.current) clearTimeout(suggestionTimer.current);
-
     if (!text.trim()) {
-      setSearchResults([]);
-      setSuggestions([]);
-      setShowSuggestions(false);
+      setSearchResults({ songs: [], albums: [], artists: [] });
+      setHasSearched(false);
       setSearchLoading(false);
       return;
     }
 
-    const trimmedText = text.trim();
-    setShowSuggestions(true);
-
-    suggestionTimer.current = setTimeout(async () => {
-      setSuggestionLoading(true);
-      try {
-        const filtered = GENRE_SUGGESTIONS.filter(g =>
-          g.toLowerCase().includes(trimmedText.toLowerCase())
-        );
-        const fromTrending = TRENDING_SEARCHES.filter(t =>
-          t.toLowerCase().includes(trimmedText.toLowerCase())
-        );
-        const fromRecent = recentSearches.filter(r =>
-          r.toLowerCase().includes(trimmedText.toLowerCase())
-        );
-        setSuggestions([...new Set([...fromRecent, ...fromTrending, ...filtered])].slice(0, 5));
-      } finally {
-        setSuggestionLoading(false);
-      }
-    }, 100);
-
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
 
-    if (trimmedText.length < MIN_QUERY_LENGTH) {
+    if (text.trim().length < MIN_QUERY_LENGTH) {
       return;
     }
 
     debounceTimer.current = setTimeout(async () => {
       setSearchLoading(true);
-      setShowSuggestions(false);
+      setHasSearched(true);
+
       try {
-        const results = await MusicApiService.searchSongs(trimmedText);
+        const results = await MusicApiService.searchAll(text.trim());
         if (!abortControllerRef.current?.signal.aborted) {
           setSearchResults(results);
         }
       } catch (e) {
         if (!abortControllerRef.current?.signal.aborted) {
           console.log('Search error:', e);
-          setSearchResults([]);
+          setSearchResults({ songs: [], albums: [], artists: [] });
         }
       } finally {
         if (!abortControllerRef.current?.signal.aborted) {
@@ -111,11 +97,10 @@ export const SearchScreen = ({ navigation }: any) => {
         }
       }
     }, DEBOUNCE_DELAY);
-  }, [selectedGenre, recentSearches]);
+  }, []);
 
   const handleSuggestionPress = useCallback((suggestion: string) => {
     setSearchQuery(suggestion);
-    setShowSuggestions(false);
     Keyboard.dismiss();
 
     if (!recentSearches.includes(suggestion)) {
@@ -128,7 +113,9 @@ export const SearchScreen = ({ navigation }: any) => {
     abortControllerRef.current = new AbortController();
 
     setSearchLoading(true);
-    MusicApiService.searchSongs(suggestion)
+    setHasSearched(true);
+
+    MusicApiService.searchAll(suggestion)
       .then(results => {
         if (!abortControllerRef.current?.signal.aborted) {
           setSearchResults(results);
@@ -148,187 +135,202 @@ export const SearchScreen = ({ navigation }: any) => {
 
   const handleClearSearch = useCallback(() => {
     setSearchQuery('');
-    setSearchResults([]);
-    setSuggestions([]);
-    setShowSuggestions(false);
+    setSearchResults({ songs: [], albums: [], artists: [] });
+    setHasSearched(false);
     setSearchLoading(false);
     inputRef.current?.focus();
   }, []);
 
-  const handleSongPress = (song: Song) => {
-    dispatch(playSong({ song, queue: searchResults }));
-  };
+  const handleSongPress = useCallback((song: Song) => {
+    dispatch(playSong({ song, queue: searchResults.songs }));
+  }, [dispatch, searchResults.songs]);
+
+  const handleAlbumPress = useCallback((album: Album) => {
+    navigation.navigate('AlbumDetail', { albumId: album.id, title: album.title });
+  }, [navigation]);
+
+  const handleArtistPress = useCallback((artistId: string) => {
+    navigation.navigate('ArtistDetail', { artistId });
+  }, [navigation]);
 
   const handleMiniPlayerPress = () => navigation.navigate('Player');
-
-  const handleGenrePress = useCallback((genre: string) => {
-    const genreSearch = genre.toLowerCase();
-    const searchTerm = genre === 'bollywood' ? 'Bollywood songs' : `${genre} songs`;
-
-    if (selectedGenre === genre) {
-      setSelectedGenre(null);
-      setSearchQuery('');
-      setSearchResults([]);
-      return;
-    }
-
-    setSelectedGenre(genre);
-    setSearchQuery(searchTerm);
-    setShowSuggestions(false);
-    Keyboard.dismiss();
-
-    if (!recentSearches.includes(searchTerm)) {
-      setRecentSearches(prev => [searchTerm, ...prev.slice(0, 4)]);
-    }
-
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-    abortControllerRef.current = new AbortController();
-
-    setSearchLoading(true);
-    MusicApiService.searchSongs(searchTerm)
-      .then(results => {
-        if (!abortControllerRef.current?.signal.aborted) {
-          setSearchResults(results);
-        }
-      })
-      .catch(e => {
-        if (!abortControllerRef.current?.signal.aborted) {
-          console.log('Search error:', e);
-        }
-      })
-      .finally(() => {
-        if (!abortControllerRef.current?.signal.aborted) {
-          setSearchLoading(false);
-        }
-      });
-  }, [selectedGenre, recentSearches]);
 
   const handleTrendingPress = useCallback((trend: string) => {
     handleSuggestionPress(trend);
   }, [handleSuggestionPress]);
 
   const handleRecentSearchPress = useCallback((recent: string) => {
+    setSearchQuery(recent);
     handleSuggestionPress(recent);
   }, [handleSuggestionPress]);
 
-  const renderSuggestions = () => {
-    if (!showSuggestions) return null;
-    if (suggestionLoading) {
-      return (
-        <View style={[styles.suggestionsContainer, { backgroundColor: colors.secondary }]}>
-          <ActivityIndicator size="small" color={colors.primary} style={styles.suggestionLoader} />
-        </View>
-      );
-    }
+  const handleClearRecent = useCallback(() => {
+    setRecentSearches([]);
+  }, []);
 
-    if (suggestions.length === 0 && searchQuery.length >= MIN_QUERY_LENGTH) {
-      return null;
-    }
-
-    const hasRecent = recentSearches.length > 0;
-    const hasMatches = suggestions.length > 0;
-
-    if (!hasRecent && !hasMatches) return null;
-
-    return (
-      <View style={[styles.suggestionsContainer, { backgroundColor: colors.secondary }]}>
-        {recentSearches.length > 0 && searchQuery.length === 0 && (
-          <View style={styles.suggestionSection}>
-            <View style={styles.suggestionSectionHeader}>
-              <Ionicons name="time" size={14} color={colors.textMuted} />
-              <Text style={[styles.suggestionSectionTitle, { color: colors.textMuted }]}>Recent</Text>
-            </View>
-            {recentSearches.map((recent, index) => (
-              <TouchableOpacity
-                key={`recent-${index}`}
-                style={styles.suggestionItem}
-                onPress={() => handleRecentSearchPress(recent)}
-              >
-                <Ionicons name="arrow-forward" size={16} color={colors.textMuted} />
-                <Text style={[styles.suggestionText, { color: colors.text }]}>{recent}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
-
-        {suggestions.length > 0 && (
-          <View style={styles.suggestionSection}>
-            {searchQuery.length >= MIN_QUERY_LENGTH && (
-              <View style={styles.suggestionSectionHeader}>
-                <Ionicons name="keypad" size={14} color={colors.textMuted} />
-                <Text style={[styles.suggestionSectionTitle, { color: colors.textMuted }]}>Suggestions</Text>
-              </View>
-            )}
-            {suggestions.map((suggestion, index) => (
-              <TouchableOpacity
-                key={`suggestion-${index}`}
-                style={styles.suggestionItem}
-                onPress={() => handleSuggestionPress(suggestion)}
-              >
-                <Ionicons name="search" size={16} color={colors.textMuted} />
-                <Text style={[styles.suggestionText, { color: colors.text }]}>{suggestion}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
-      </View>
-    );
-  };
+  const totalResults = searchResults.songs.length + searchResults.albums.length + searchResults.artists.length;
 
   const renderSearchResults = () => {
     if (searchLoading) {
       return (
         <View style={styles.loadingContainer}>
-          <Ionicons name="hourglass" size={32} color={colors.primary} />
+          <ActivityIndicator size="large" color={colors.primary} />
           <Text style={[styles.loadingText, { color: colors.textMuted }]}>Searching...</Text>
         </View>
       );
     }
 
-    if (!searchQuery && !selectedGenre) {
+    if (hasSearched && totalResults === 0) {
       return (
         <View style={styles.emptyContainer}>
-          <Ionicons name="search" size={48} color={colors.textMuted} />
-          <Text style={[styles.emptyTitle, { color: colors.text }]}>Search for songs</Text>
-          <Text style={[styles.emptySubtitle, { color: colors.textMuted }]}>Search by song name or artist</Text>
-        </View>
-      );
-    }
-
-    if (searchResults.length === 0) {
-      return (
-        <View style={styles.emptyContainer}>
-          <Ionicons name="musical-note" size={48} color={colors.textMuted} />
+          <Ionicons name="musical-note" size={64} color={colors.textMuted} />
           <Text style={[styles.emptyTitle, { color: colors.text }]}>No results found</Text>
-          <Text style={[styles.emptySubtitle, { color: colors.textMuted }]}>Try a different search term</Text>
+          <Text style={[styles.emptySubtitle, { color: colors.textMuted }]}>
+            Try a different search term or check spelling
+          </Text>
         </View>
       );
     }
 
     return (
-      <FlatList
-        data={searchResults}
-        keyExtractor={(item) => item.id}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.resultsContent}
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            style={styles.songItem}
-            onPress={() => handleSongPress(item)}
-          >
-            <Image source={{ uri: item.coverUrl }} style={styles.songImage} />
-            <View style={styles.songInfo}>
-              <Text style={[styles.songTitle, { color: colors.text }]} numberOfLines={1}>{item.title}</Text>
-              <Text style={[styles.songArtist, { color: colors.textMuted }]} numberOfLines={1}>{item.artist}</Text>
-            </View>
-            <Ionicons name="musical-note" size={18} color={colors.textMuted} />
-          </TouchableOpacity>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.resultsContent}>
+        {/* Artists Section */}
+        {searchResults.artists.length > 0 && (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Artists</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {searchResults.artists.map((artist, index) => (
+                <TouchableOpacity
+                  key={artist.id || index}
+                  style={styles.artistCard}
+                  onPress={() => handleArtistPress(artist.id)}
+                >
+                  <Image
+                    source={{ uri: artist.image || artist.thumbnail }}
+                    style={styles.artistImage}
+                  />
+                  <Text style={[styles.artistName, { color: colors.text }]} numberOfLines={1}>
+                    {artist.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
         )}
-      />
+
+        {/* Albums Section */}
+        {searchResults.albums.length > 0 && (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Albums</Text>
+            <View style={styles.albumsGrid}>
+              {searchResults.albums.slice(0, 6).map((album) => (
+                <TouchableOpacity
+                  key={album.id}
+                  style={styles.albumCard}
+                  onPress={() => handleAlbumPress(album)}
+                >
+                  <Image source={{ uri: album.coverUrl || album.artwork }} style={styles.albumImage} />
+                  <Text style={[styles.albumTitle, { color: colors.text }]} numberOfLines={1}>
+                    {album.title}
+                  </Text>
+                  <Text style={[styles.albumArtist, { color: colors.textMuted }]} numberOfLines={1}>
+                    {album.artist}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* Songs Section */}
+        {searchResults.songs.length > 0 && (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>
+              Songs ({searchResults.songs.length})
+            </Text>
+            {searchResults.songs.map((song) => (
+              <TouchableOpacity
+                key={song.id}
+                style={styles.songItem}
+                onPress={() => handleSongPress(song)}
+              >
+                <Image source={{ uri: song.coverUrl }} style={styles.songImage} />
+                <View style={styles.songInfo}>
+                  <Text style={[styles.songTitle, { color: colors.text }]} numberOfLines={1}>
+                    {song.title}
+                  </Text>
+                  <Text style={[styles.songArtist, { color: colors.textMuted }]} numberOfLines={1}>
+                    {song.artist}
+                  </Text>
+                </View>
+                <Ionicons name="musical-note" size={18} color={colors.textMuted} />
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
+        <View style={{ height: 100 }} />
+      </ScrollView>
     );
   };
+
+  const renderDefaultContent = () => (
+    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+      {recentSearches.length > 0 && (
+        <View style={styles.section}>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Recent Searches</Text>
+            <TouchableOpacity onPress={handleClearRecent}>
+              <Text style={[styles.clearText, { color: colors.primary }]}>Clear</Text>
+            </TouchableOpacity>
+          </View>
+          {recentSearches.map((recent, index) => (
+            <TouchableOpacity
+              key={`recent-${index}`}
+              style={styles.recentItem}
+              onPress={() => handleRecentSearchPress(recent)}
+            >
+              <Ionicons name="time" size={16} color={colors.textMuted} />
+              <Text style={[styles.recentText, { color: colors.text }]}>{recent}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Trending Searches</Text>
+        <View style={styles.trendingContainer}>
+          {TRENDING_SEARCHES.map((trend, index) => (
+            <TouchableOpacity
+              key={`trend-${index}`}
+              style={[styles.trendingItem, { backgroundColor: colors.secondary }]}
+              onPress={() => handleTrendingPress(trend)}
+            >
+              <Ionicons name="trending-up" size={14} color={colors.primary} />
+              <Text style={[styles.trendingText, { color: colors.text }]}>{trend}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Browse by Genre</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          {GENRE_SUGGESTIONS.map((genre, index) => (
+            <TouchableOpacity
+              key={`genre-${index}`}
+              style={[styles.genreChip, { backgroundColor: colors.card }]}
+              onPress={() => handleSuggestionPress(`${genre} songs`)}
+            >
+              <Text style={[styles.genreText, { color: colors.text }]}>{genre}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+
+      <View style={{ height: 100 }} />
+    </ScrollView>
+  );
 
   return (
     <SafeContainer style={styles.container}>
@@ -343,95 +345,23 @@ export const SearchScreen = ({ navigation }: any) => {
             <TextInput
               ref={inputRef}
               style={[styles.searchInput, { color: colors.text }]}
-              placeholder="Search songs, artists..."
+              placeholder="Search songs, artists, albums..."
               placeholderTextColor={colors.textMuted}
               value={searchQuery}
               onChangeText={handleSearchChange}
-              onFocus={() => searchQuery.length >= MIN_QUERY_LENGTH && setShowSuggestions(true)}
-              onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
               returnKeyType="search"
               autoCorrect={false}
               autoCapitalize="none"
             />
             {searchQuery.length > 0 && (
               <TouchableOpacity onPress={handleClearSearch}>
-                <Ionicons name="close" size={20} color={colors.textMuted} />
+                <Ionicons name="close-circle" size={20} color={colors.textMuted} />
               </TouchableOpacity>
             )}
           </View>
-
-          {renderSuggestions()}
-
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.filterContainer}
-          >
-            <CategoryChip label="All" isActive={!selectedGenre} onPress={() => setSelectedGenre(null)} />
-            <CategoryChip label="Bollywood" isActive={selectedGenre === 'bollywood'} onPress={() => handleGenrePress('bollywood')} />
-            <CategoryChip label="Punjabi" isActive={selectedGenre === 'punjabi'} onPress={() => handleGenrePress('punjabi')} />
-            <CategoryChip label="Tamil" isActive={selectedGenre === 'tamil'} onPress={() => handleGenrePress('tamil')} />
-            <CategoryChip label="Telugu" isActive={selectedGenre === 'telugu'} onPress={() => handleGenrePress('telugu')} />
-            <CategoryChip label="Devotional" isActive={selectedGenre === 'devotional'} onPress={() => handleGenrePress('devotional')} />
-          </ScrollView>
         </View>
 
-        {!searchQuery && !selectedGenre && (
-          <ScrollView
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={[
-              styles.scrollContent,
-              currentSong && styles.scrollContentWithPlayer
-            ]}
-          >
-            {recentSearches.length > 0 && (
-              <View style={styles.section}>
-                <View style={styles.sectionTitleRow}>
-                  <Ionicons name="time" size={18} color={colors.primary} />
-                  <Text style={[styles.sectionTitle, { color: colors.text }]}>Recent Searches</Text>
-                </View>
-                <View style={styles.trendingContainer}>
-                  {recentSearches.map((recent, index) => (
-                    <TouchableOpacity
-                      key={`recent-${index}`}
-                      style={[styles.trendingItem, { backgroundColor: colors.secondary }]}
-                      onPress={() => handleRecentSearchPress(recent)}
-                    >
-                      <Ionicons name="time" size={14} color={colors.textMuted} />
-                      <Text style={[styles.trendingText, { color: colors.text, marginLeft: 6 }]}>{recent}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-            )}
-
-            <View style={styles.section}>
-              <View style={styles.sectionTitleRow}>
-                <Ionicons name="trending-up" size={18} color={colors.primary} />
-                <Text style={[styles.sectionTitle, { color: colors.text }]}>Trending</Text>
-              </View>
-              <View style={styles.trendingContainer}>
-                {TRENDING_SEARCHES.map((trend, index) => (
-                  <TouchableOpacity
-                    key={`trend-${index}`}
-                    style={[styles.trendingItem, { backgroundColor: colors.secondary }]}
-                    onPress={() => handleTrendingPress(trend)}
-                  >
-                    <Text style={[styles.trendingText, { color: colors.text }]}>{trend}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-
-            <View style={{ height: 100 }} />
-          </ScrollView>
-        )}
-
-        {(searchQuery.length >= MIN_QUERY_LENGTH || selectedGenre) && (
-          <View style={[styles.resultsWrapper, currentSong && styles.resultsWrapperWithPlayer]}>
-            {renderSearchResults()}
-          </View>
-        )}
+        {hasSearched ? renderSearchResults() : renderDefaultContent()}
       </View>
 
       {currentSong && <MiniPlayer onPress={handleMiniPlayerPress} />}
@@ -443,53 +373,33 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   searchWrapper: { flex: 1 },
   scrollContent: { flexGrow: 1, paddingBottom: 20 },
-  scrollContentWithPlayer: { paddingBottom: 0 },
   header: { paddingHorizontal: SPACING.lg, paddingVertical: SPACING.md },
   headerTitle: { fontSize: 32, fontWeight: 'bold' },
   searchContainer: { paddingHorizontal: SPACING.lg, zIndex: 10 },
   searchInputContainer: {
-    flexDirection: 'row', alignItems: 'center', borderRadius: SIZES.radius,
-    paddingHorizontal: SPACING.md, height: 50,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: SIZES.radius,
+    paddingHorizontal: SPACING.md,
+    height: 50,
   },
   searchInput: { flex: 1, marginLeft: SPACING.sm, fontSize: 16 },
-  suggestionsContainer: {
-    marginTop: SPACING.xs,
-    borderRadius: SIZES.radius,
-    padding: SPACING.sm,
-  },
-  suggestionLoader: {
-    paddingVertical: SPACING.sm,
-  },
-  suggestionSection: {
-    marginBottom: SPACING.sm,
-  },
-  suggestionSectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: SPACING.xs,
-    paddingHorizontal: SPACING.xs,
-  },
-  suggestionSectionTitle: {
-    fontSize: 12,
-    marginLeft: SPACING.xs,
-    textTransform: 'uppercase',
-    fontWeight: '600',
-  },
-  suggestionItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: SPACING.sm,
-    paddingHorizontal: SPACING.sm,
-    borderRadius: 8,
-  },
-  suggestionText: {
-    fontSize: 15,
-    marginLeft: SPACING.sm,
-  },
-  filterContainer: { paddingVertical: SPACING.md, gap: SPACING.sm },
   section: { paddingHorizontal: SPACING.lg, marginTop: SPACING.xl },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SPACING.md,
+  },
   sectionTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: SPACING.md },
-  sectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
+  clearText: { fontSize: 14 },
+  recentItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: SPACING.sm,
+    gap: SPACING.sm,
+  },
+  recentText: { fontSize: 15 },
   trendingContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm },
   trendingItem: {
     flexDirection: 'row',
@@ -497,28 +407,60 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.sm,
     borderRadius: SIZES.radius,
+    gap: SPACING.xs,
   },
   trendingText: { fontSize: 14 },
-  resultsWrapper: {
-    flex: 1,
-    paddingHorizontal: SPACING.lg,
+  genreChip: {
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    borderRadius: 20,
+    marginRight: SPACING.sm,
   },
-  resultsWrapperWithPlayer: {
-    paddingBottom: 80,
-  },
+  genreText: { fontSize: 14, fontWeight: '500' },
   resultsContent: { paddingBottom: 100 },
+  loadingContainer: { alignItems: 'center', paddingVertical: SPACING.xxl },
+  loadingText: { fontSize: 14, marginTop: SPACING.sm },
+  emptyContainer: { alignItems: 'center', paddingVertical: SPACING.xxl * 2 },
+  emptyTitle: { fontSize: 20, fontWeight: 'bold', marginTop: SPACING.lg },
+  emptySubtitle: { fontSize: 14, marginTop: SPACING.sm, textAlign: 'center' },
+  artistCard: {
+    alignItems: 'center',
+    marginRight: SPACING.md,
+    width: 80,
+  },
+  artistImage: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    marginBottom: SPACING.xs,
+  },
+  artistName: { fontSize: 12, textAlign: 'center' },
+  albumsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: SPACING.sm,
+  },
+  albumCard: {
+    width: '31%',
+    marginBottom: SPACING.md,
+  },
+  albumImage: {
+    width: '100%',
+    aspectRatio: 1,
+    borderRadius: SIZES.radius,
+    marginBottom: SPACING.xs,
+  },
+  albumTitle: { fontSize: 12, fontWeight: '600' },
+  albumArtist: { fontSize: 11, marginTop: 2 },
   songItem: {
-    flexDirection: 'row', alignItems: 'center', paddingVertical: SPACING.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: SPACING.md,
   },
   songImage: { width: 50, height: 50, borderRadius: 8 },
   songInfo: { flex: 1, marginLeft: SPACING.md },
   songTitle: { fontSize: 16, fontWeight: '600' },
   songArtist: { fontSize: 14, marginTop: 2 },
-  loadingContainer: { alignItems: 'center', paddingVertical: SPACING.xxl },
-  loadingText: { fontSize: 14, marginTop: SPACING.sm },
-  emptyContainer: { alignItems: 'center', paddingVertical: SPACING.xxl },
-  emptyTitle: { fontSize: 20, fontWeight: 'bold', marginTop: SPACING.lg },
-  emptySubtitle: { fontSize: 14, marginTop: SPACING.sm },
 });
 
 export default SearchScreen;

@@ -2,11 +2,12 @@ import axios from 'axios';
 import { logger } from '../utils/logger';
 import { withTimeout, withRetry } from '../utils/retry';
 import { withCircuitBreaker } from '../utils/circuitBreaker';
-import type { NormalizedSong, ServiceResponse } from '../types/music';
+import type { NormalizedSong, ServiceResponse, ImageUrl, StreamUrl } from '../types/music';
 
 const GAANAPY_URL = process.env.GAANAPY_URL || 'http://127.0.0.1:8000';
 const CIRCUIT_BREAKER_KEY = 'gaana';
-const MAX_RETRIES = 2;
+const MAX_RETRIES = 0;
+const GAANA_TIMEOUT = 3000;
 
 interface GaanaTrack {
   seokey: string;
@@ -48,15 +49,33 @@ interface GaanaTrack {
 }
 
 function normalizeTrack(track: GaanaTrack): NormalizedSong {
-  const thumbnail = track.images?.urls?.medium_artwork || track.images?.urls?.small_artwork || '';
-  const streamUrl = track.stream_urls?.urls?.high_quality || track.stream_urls?.urls?.medium_quality || '';
+  const thumbnails: ImageUrl[] = [];
+  if (track.images?.urls?.small_artwork) thumbnails.push({ quality: '50x50', url: track.images.urls.small_artwork });
+  if (track.images?.urls?.medium_artwork) thumbnails.push({ quality: '150x150', url: track.images.urls.medium_artwork });
+  if (track.images?.urls?.large_artwork) thumbnails.push({ quality: '500x500', url: track.images.urls.large_artwork });
+
+  const streamUrls: StreamUrl[] = [];
+  if (track.stream_urls?.urls?.low_quality) streamUrls.push({ quality: 'low', url: track.stream_urls.urls.low_quality });
+  if (track.stream_urls?.urls?.medium_quality) streamUrls.push({ quality: 'medium', url: track.stream_urls.urls.medium_quality });
+  if (track.stream_urls?.urls?.high_quality) streamUrls.push({ quality: 'high', url: track.stream_urls.urls.high_quality });
+  if (track.stream_urls?.urls?.very_high_quality) streamUrls.push({ quality: 'veryhigh', url: track.stream_urls.urls.very_high_quality });
 
   return {
     id: `gn_${track.track_id}`,
     title: track.title || 'Unknown Title',
     artist: track.artists || 'Unknown Artist',
-    thumbnail,
-    streamUrl,
+    album: {
+      id: track.album_id,
+      name: track.album,
+      url: track.album_url,
+    },
+    thumbnails,
+    thumbnail: track.images?.urls?.medium_artwork || track.images?.urls?.small_artwork || '',
+    streamUrls,
+    streamUrl: track.stream_urls?.urls?.high_quality || track.stream_urls?.urls?.medium_quality || '',
+    duration: parseInt(track.duration || '0', 10),
+    releaseDate: track.release_date,
+    language: track.language,
     source: 'gaana',
   };
 }
@@ -66,9 +85,9 @@ export async function searchGaana(query: string, limit = 20): Promise<ServiceRes
     const response = await withTimeout(
       axios.get(`${GAANAPY_URL}/songs/search/`, {
         params: { query, limit },
-        timeout: Number(process.env.API_TIMEOUT) || 7000,
+        timeout: GAANA_TIMEOUT,
       }),
-      Number(process.env.API_TIMEOUT) || 7000,
+      GAANA_TIMEOUT,
       'GaanaPy search timeout'
     );
 
@@ -104,9 +123,9 @@ export async function getTrendingGaana(language = 'Hindi', limit = 20): Promise<
     const response = await withTimeout(
       axios.get(`${GAANAPY_URL}/trending`, {
         params: { language, limit },
-        timeout: Number(process.env.API_TIMEOUT) || 7000,
+        timeout: GAANA_TIMEOUT,
       }),
-      Number(process.env.API_TIMEOUT) || 7000,
+      GAANA_TIMEOUT,
       'GaanaPy trending timeout'
     );
 
@@ -141,9 +160,9 @@ export async function getNewReleasesGaana(language = 'Hindi', limit = 20): Promi
     const response = await withTimeout(
       axios.get(`${GAANAPY_URL}/newreleases`, {
         params: { language, limit },
-        timeout: Number(process.env.API_TIMEOUT) || 7000,
+        timeout: GAANA_TIMEOUT,
       }),
-      Number(process.env.API_TIMEOUT) || 7000,
+      GAANA_TIMEOUT,
       'GaanaPy new releases timeout'
     );
 
@@ -178,9 +197,9 @@ export async function getChartsGaana(limit = 10): Promise<ServiceResponse<any>> 
     const response = await withTimeout(
       axios.get(`${GAANAPY_URL}/charts`, {
         params: { limit },
-        timeout: Number(process.env.API_TIMEOUT) || 7000,
+        timeout: GAANA_TIMEOUT,
       }),
-      Number(process.env.API_TIMEOUT) || 7000,
+      GAANA_TIMEOUT,
       'GaanaPy charts timeout'
     );
 
@@ -208,9 +227,9 @@ export async function getSongBySeokey(seokey: string): Promise<ServiceResponse<N
     const response = await withTimeout(
       axios.get(`${GAANAPY_URL}/songs/info/`, {
         params: { seokey },
-        timeout: Number(process.env.API_TIMEOUT) || 7000,
+        timeout: GAANA_TIMEOUT,
       }),
-      Number(process.env.API_TIMEOUT) || 7000,
+      GAANA_TIMEOUT,
       'GaanaPy song info timeout'
     );
 
@@ -339,9 +358,9 @@ export async function getAlbumsGaana(page = 1, limit = 20): Promise<ServiceRespo
     const response = await withTimeout(
       axios.get(`${GAANAPY_URL}/charts`, {
         params: { limit },
-        timeout: Number(process.env.API_TIMEOUT) || 7000,
+        timeout: GAANA_TIMEOUT,
       }),
-      Number(process.env.API_TIMEOUT) || 7000,
+      GAANA_TIMEOUT,
       'GaanaPy charts timeout'
     );
 
@@ -378,9 +397,9 @@ export async function getAlbumBySeokey(seokey: string): Promise<ServiceResponse<
     const response = await withTimeout(
       axios.get(`${GAANAPY_URL}/albums/info/`, {
         params: { seokey },
-        timeout: Number(process.env.API_TIMEOUT) || 7000,
+        timeout: GAANA_TIMEOUT,
       }),
-      Number(process.env.API_TIMEOUT) || 7000,
+      GAANA_TIMEOUT,
       'GaanaPy album info timeout'
     );
 

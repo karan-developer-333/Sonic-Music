@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState, useRef } from 'react';
+import React, { useCallback, useRef, useState, memo, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
@@ -14,11 +14,26 @@ import { MiniPlayer } from '../components/MiniPlayer';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { Feather } from '@expo/vector-icons';
+import {
+  useAppSelector,
+  useAppDispatch,
+  selectCurrentSong,
+  selectIsPlaying,
+  selectIsLoading,
+  selectShuffle,
+  selectRepeat,
+  selectThemeColors,
+} from '../../application/store/hooks';
+import { togglePlayback, skipNext, skipPrevious, seekToPosition, toggleShuffle, toggleRepeat } from '../../application/store/slices/playerSlice';
+import { addToPlaylist, removeFromPlaylist } from '../../application/store/slices/playlistSlice';
+import { PlaybackService } from '../../application/services/PlaybackService';
 
 const { width } = Dimensions.get('window');
 const IMAGE_SIZE = width * 0.8;
 
-const formatTime = (seconds: number): string => {
+const DEBOUNCE_MS = 300;
+
+function formatTime(seconds: number): string {
   if (!seconds || isNaN(seconds) || seconds < 0) return '0:00';
 
   const hrs = Math.floor(seconds / 3600);
@@ -30,52 +45,113 @@ const formatTime = (seconds: number): string => {
   }
 
   return `${mins}:${secs.toString().padStart(2, '0')}`;
-};
+}
 
-import { useAppSelector, useAppDispatch } from '../../application/store/hooks';
-import { togglePlayback, skipNext, skipPrevious, seekToPosition, toggleShuffle, toggleRepeat } from '../../application/store/slices/playerSlice';
-import { addToPlaylist, removeFromPlaylist } from '../../application/store/slices/playlistSlice';
+function useDebounce(callback: () => void, delay: number) {
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const callbackRef = useRef(callback);
+  
+  callbackRef.current = callback;
 
-export const PlayerScreen = React.memo(({ navigation }: any) => {
-  const {
-    currentSong,
-    isPlaying,
-    isLoading,
-    progress,
-    currentTime,
-    duration,
-    shuffle,
-    repeat,
-  } = useAppSelector(state => state.player);
+  const debouncedCallback = useCallback(() => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    timeoutRef.current = setTimeout(() => {
+      callbackRef.current();
+    }, delay);
+  }, [delay]);
 
-  const colors = useAppSelector(state => state.theme.colors);
+  return debouncedCallback;
+}
+
+const PlayerScreen = memo(({ navigation }: any) => {
   const dispatch = useAppDispatch();
+  
+  const currentSong = useAppSelector(selectCurrentSong);
+  const isPlaying = useAppSelector(selectIsPlaying);
+  const isLoading = useAppSelector(selectIsLoading);
+  const duration = useAppSelector((state) => state.player.duration);
+  const shuffle = useAppSelector(selectShuffle);
+  const repeat = useAppSelector(selectRepeat);
+  const colors = useAppSelector(selectThemeColors);
 
   const progressBarRef = useRef<View>(null);
   const [isSeeking, setIsSeeking] = useState(false);
   const [seekProgress, setSeekProgress] = useState(0);
   const [seekTime, setSeekTime] = useState(0);
+  const [localProgress, setLocalProgress] = useState(0);
+  const [localCurrentTime, setLocalCurrentTime] = useState(0);
+  const [localDuration, setLocalDuration] = useState(0);
 
-  const isLiked = useAppSelector(state =>
+  const isLiked = useAppSelector((state) =>
     state.playlist.playlists.find(p => p.id === 'liked')?.songs.some(s => s.id === currentSong?.id)
   ) || false;
-  const displayProgress = isSeeking ? seekProgress : progress;
-  const displayTime = isSeeking ? seekTime : currentTime;
-  const totalDuration = duration || currentSong?.duration || 0;
+  
+  const displayProgress = isSeeking ? seekProgress : localProgress;
+  const displayTime = isSeeking ? seekTime : localCurrentTime;
+  const totalDuration = localDuration || currentSong?.duration || 0;
+
+  useEffect(() => {
+    const playbackService = PlaybackService.getInstance();
+    
+    const callbackId = playbackService.setStatusCallback((status) => {
+      if (status.isLoaded) {
+        const progress = status.positionMillis / (status.durationMillis || 1);
+        const currentTimeSec = status.positionMillis / 1000;
+        const dur = status.durationMillis || 0;
+        
+        if (!isSeeking) {
+          setLocalProgress(progress);
+          setLocalCurrentTime(currentTimeSec);
+        }
+        setLocalDuration(dur);
+      }
+    });
+
+    return () => {
+      playbackService.removeStatusCallback(callbackId);
+    };
+  }, [isSeeking]);
+
+  const debouncedTogglePlayback = useDebounce(
+    useCallback(() => {
+      dispatch(togglePlayback());
+    }, [dispatch]),
+    DEBOUNCE_MS
+  );
+
+  const debouncedSkipNext = useDebounce(
+    useCallback(() => {
+      dispatch(skipNext());
+    }, [dispatch]),
+    DEBOUNCE_MS
+  );
+
+  const debouncedSkipPrevious = useDebounce(
+    useCallback(() => {
+      dispatch(skipPrevious());
+    }, [dispatch]),
+    DEBOUNCE_MS
+  );
 
   const handleProgressPress = useCallback((event: any) => {
     if (progressBarRef.current) {
       progressBarRef.current.measure((x: number, y: number, w: number, h: number, pageX: number, pageY: number) => {
         const touchX = event.nativeEvent.locationX;
         const newProgress = Math.max(0, Math.min(1, touchX / w));
-        const newTime = newProgress * (duration || 0);
+        const newTime = newProgress * (localDuration || 0);
+        
         setSeekProgress(newProgress);
         setSeekTime(newTime);
+        setLocalProgress(newProgress);
+        setLocalCurrentTime(newTime);
+        
         dispatch(seekToPosition(newProgress));
         setIsSeeking(false);
       });
     }
-  }, [duration, dispatch]);
+  }, [localDuration, dispatch]);
 
   const handleProgressPressIn = useCallback((event: any) => {
     setIsSeeking(true);
@@ -83,12 +159,24 @@ export const PlayerScreen = React.memo(({ navigation }: any) => {
       progressBarRef.current.measure((x: number, y: number, w: number, h: number, pageX: number, pageY: number) => {
         const touchX = event.nativeEvent.locationX;
         const newProgress = Math.max(0, Math.min(1, touchX / w));
-        const newTime = newProgress * (duration || 0);
+        const newTime = newProgress * (localDuration || 0);
         setSeekProgress(newProgress);
         setSeekTime(newTime);
       });
     }
-  }, [duration]);
+  }, [localDuration]);
+
+  const handleProgressMove = useCallback((event: any) => {
+    if (isSeeking && progressBarRef.current) {
+      progressBarRef.current.measure((x: number, y: number, w: number, h: number, pageX: number, pageY: number) => {
+        const touchX = event.nativeEvent.locationX;
+        const newProgress = Math.max(0, Math.min(1, touchX / w));
+        const newTime = newProgress * (localDuration || 0);
+        setSeekProgress(newProgress);
+        setSeekTime(newTime);
+      });
+    }
+  }, [isSeeking, localDuration]);
 
   const handleLikePress = useCallback(() => {
     if (currentSong) {
@@ -99,6 +187,14 @@ export const PlayerScreen = React.memo(({ navigation }: any) => {
       }
     }
   }, [currentSong, isLiked, dispatch]);
+
+  const handleToggleShuffle = useCallback(() => {
+    dispatch(toggleShuffle());
+  }, [dispatch]);
+
+  const handleToggleRepeat = useCallback(() => {
+    dispatch(toggleRepeat());
+  }, [dispatch]);
 
   const getRepeatIcon = useCallback(() => {
     if (repeat === 'one') {
@@ -162,6 +258,7 @@ export const PlayerScreen = React.memo(({ navigation }: any) => {
             style={[styles.progressBarBg, { backgroundColor: colors.secondary }]}
             onPressIn={handleProgressPressIn}
             onPress={handleProgressPress}
+            onTouchMove={handleProgressMove}
           >
             <View
               style={[
@@ -182,7 +279,7 @@ export const PlayerScreen = React.memo(({ navigation }: any) => {
             {formatTime(displayTime)}
           </Text>
           <Text style={[styles.timeText, { color: colors.textMuted }]}>
-            {formatTime(totalDuration)}
+            {formatTime(totalDuration / 1000)}
           </Text>
         </View>
       </View>
@@ -190,7 +287,7 @@ export const PlayerScreen = React.memo(({ navigation }: any) => {
       <View style={styles.controlsContainer}>
         <TouchableOpacity
           style={styles.sideControl}
-          onPress={() => dispatch(toggleShuffle())}
+          onPress={handleToggleShuffle}
         >
           <Ionicons
             name="shuffle"
@@ -202,14 +299,14 @@ export const PlayerScreen = React.memo(({ navigation }: any) => {
         <View style={styles.mainControls}>
           <TouchableOpacity
             style={styles.skipButton}
-            onPress={() => dispatch(skipPrevious())}
+            onPress={debouncedSkipPrevious}
           >
             <Ionicons name="play-skip-back" size={32} color={colors.text} />
           </TouchableOpacity>
 
           <TouchableOpacity
             style={[styles.playButton, { backgroundColor: colors.primary }]}
-            onPress={() => dispatch(togglePlayback())}
+            onPress={debouncedTogglePlayback}
             activeOpacity={0.8}
             disabled={isLoading}
           >
@@ -226,7 +323,7 @@ export const PlayerScreen = React.memo(({ navigation }: any) => {
 
           <TouchableOpacity
             style={styles.skipButton}
-            onPress={() => dispatch(skipNext())}
+            onPress={debouncedSkipNext}
           >
             <Ionicons name="play-skip-forward" size={32} color={colors.text} />
           </TouchableOpacity>
@@ -234,7 +331,7 @@ export const PlayerScreen = React.memo(({ navigation }: any) => {
 
         <TouchableOpacity
           style={styles.sideControl}
-          onPress={() => dispatch(toggleRepeat())}
+          onPress={handleToggleRepeat}
         >
           {getRepeatIcon()}
         </TouchableOpacity>
@@ -249,6 +346,8 @@ export const PlayerScreen = React.memo(({ navigation }: any) => {
     </SafeContainer>
   );
 });
+
+PlayerScreen.displayName = 'PlayerScreen';
 
 const styles = StyleSheet.create({
   container: {
@@ -408,3 +507,6 @@ const styles = StyleSheet.create({
     marginTop: 100,
   },
 });
+
+export { PlayerScreen };
+export default PlayerScreen;

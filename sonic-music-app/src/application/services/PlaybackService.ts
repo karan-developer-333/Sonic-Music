@@ -4,7 +4,9 @@ import { Song } from '../../domain/models/MusicModels';
 let Audio: any = null;
 let audioElement: HTMLAudioElement | null = null;
 let soundInstance: any = null;
-let statusCallback: ((status: any) => void) | null = null;
+let callbackIdCounter = 0;
+const callbacks = new Map<number, (status: any) => void>();
+const webCallbacks = new Map<number, () => void>();
 
 if (Platform.OS !== 'web') {
   try {
@@ -26,8 +28,25 @@ export class PlaybackService {
     return this.instance;
   }
 
-  setStatusCallback(callback: (status: any) => void) {
-    statusCallback = callback;
+  setStatusCallback(callback: (status: any) => void): number {
+    const id = ++callbackIdCounter;
+    callbacks.set(id, callback);
+    return id;
+  }
+
+  removeStatusCallback(callbackId: number): void {
+    callbacks.delete(callbackId);
+    webCallbacks.delete(callbackId);
+  }
+
+  private notifyCallbacks(status: any): void {
+    callbacks.forEach((callback) => {
+      try {
+        callback(status);
+      } catch (e) {
+        console.error('[PlaybackService] Callback error:', e);
+      }
+    });
   }
 
   async loadAndPlay(song: Song): Promise<void> {
@@ -40,10 +59,13 @@ export class PlaybackService {
     try {
       if (!Audio) throw new Error('Audio module not loaded');
 
-      // Unload previous sound
       if (soundInstance) {
         console.log('[PlaybackService] Unloading previous sound');
-        await soundInstance.unloadAsync();
+        try {
+          await soundInstance.unloadAsync();
+        } catch (e) {
+          console.log('[PlaybackService] Previous sound already unloaded');
+        }
         soundInstance = null;
       }
 
@@ -59,7 +81,7 @@ export class PlaybackService {
       const { sound } = await Audio.Sound.createAsync(
         { uri: song.audioUrl },
         { shouldPlay: true },
-        this.onPlaybackStatusUpdate
+        this.onPlaybackStatusUpdate.bind(this)
       );
 
       soundInstance = sound;
@@ -78,20 +100,23 @@ export class PlaybackService {
 
     audioElement = new (window as any).Audio(song.audioUrl);
     if (audioElement) {
-      audioElement.ontimeupdate = () => {
-        if (statusCallback && audioElement) {
-          statusCallback({
+      const timeUpdateHandler = () => {
+        if (audioElement) {
+          this.notifyCallbacks({
             isLoaded: true,
             isPlaying: !audioElement.paused,
             positionMillis: audioElement.currentTime * 1000,
-            durationMillis: audioElement.duration * 1000,
+            durationMillis: (audioElement.duration || 0) * 1000,
           });
         }
       };
 
-      audioElement.onended = () => {
-        if (statusCallback) statusCallback({ didJustFinish: true });
+      const endedHandler = () => {
+        this.notifyCallbacks({ didJustFinish: true });
       };
+
+      audioElement.ontimeupdate = timeUpdateHandler;
+      audioElement.onended = endedHandler;
 
       audioElement.play().catch(e => console.error('[PlaybackService] Web play error:', e));
     }
@@ -133,15 +158,17 @@ export class PlaybackService {
     }
 
     if (soundInstance) {
-      await soundInstance.stopAsync();
-      await soundInstance.unloadAsync();
+      try {
+        await soundInstance.stopAsync();
+        await soundInstance.unloadAsync();
+      } catch (e) {
+        console.log('[PlaybackService] Error stopping sound:', e);
+      }
       soundInstance = null;
     }
   }
 
   private onPlaybackStatusUpdate = (status: any) => {
-    if (statusCallback) {
-      statusCallback(status);
-    }
+    this.notifyCallbacks(status);
   };
 }

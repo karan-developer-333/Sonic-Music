@@ -19,12 +19,22 @@ export function deduplicateSongs(songs: NormalizedSong[]): NormalizedSong[] {
     }
   }
 
-  logger.debug('Deduplication stats', {
-    original: songs.length,
-    unique: unique.length,
-  });
-
   return unique;
+}
+
+export function interleaveResults(groups: NormalizedSong[][]): NormalizedSong[] {
+  const result: NormalizedSong[] = [];
+  const maxLen = Math.max(...groups.map((g) => g.length));
+
+  for (let i = 0; i < maxLen; i++) {
+    for (const group of groups) {
+      if (group[i]) {
+        result.push(group[i]);
+      }
+    }
+  }
+
+  return deduplicateSongs(result);
 }
 
 export function rankResults(songs: NormalizedSong[], query: string): NormalizedSong[] {
@@ -35,10 +45,10 @@ export function rankResults(songs: NormalizedSong[], query: string): NormalizedS
     const title = song.title.toLowerCase();
     const artist = song.artist.toLowerCase();
 
+    if (title === queryLower) score += 100;
+    if (title.startsWith(queryLower)) score += 50;
     if (title.includes(queryLower)) score += 10;
     if (artist.includes(queryLower)) score += 5;
-    if (title.startsWith(queryLower)) score += 3;
-    if (artist.startsWith(queryLower)) score += 2;
 
     return { song, score };
   });

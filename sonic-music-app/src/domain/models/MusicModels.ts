@@ -6,7 +6,7 @@ export interface Song {
   audioUrl: string;
   duration: number;
   categoryId?: string;
-  source?: 'gaana';
+  source?: 'gaana' | 'saavn';
 }
 
 export interface Album {
@@ -15,13 +15,25 @@ export interface Album {
   artist: string;
   coverUrl: string;
   artwork?: string;
-  source?: 'gaana';
+  source?: 'gaana' | 'saavn';
   type: 'album';
   releaseDate?: string;
   genre?: string;
   language?: string;
   songCount?: number;
   tracks?: Song[];
+}
+
+export interface Artist {
+  id: string;
+  name: string;
+  image: string;
+  thumbnail?: string;
+  bio?: string;
+  followerCount?: number;
+  languages?: string[];
+  isVerified?: boolean;
+  source?: 'saavn';
 }
 
 export interface Category {

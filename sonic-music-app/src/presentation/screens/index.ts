@@ -7,4 +7,5 @@ export * from './ProfileScreen';
 export * from './PlaylistDetailScreen';
 export * from './ExploreScreen';
 export * from './AlbumDetailScreen';
+export * from './ArtistDetailScreen';
 export * from './AuthScreen';

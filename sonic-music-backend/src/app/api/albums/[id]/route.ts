@@ -2,55 +2,58 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { cache } from '@/cache/redis.cache';
-import { getAlbumBySeokey } from '@/services/gaana.service';
+import { getNepotuneAlbum } from '@/services/nepotune.service';
+import { errorHandler } from '@/middleware/error.middleware';
 import { logger } from '@/utils/logger';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const startTime = Date.now();
+  
   try {
     const { id } = await params;
-    const cacheKey = `album:${id}`;
 
-    const cached = await cache.get<any>(cacheKey);
+    if (!id) {
+      return NextResponse.json({ error: 'Album ID is required' }, { status: 400 });
+    }
+
+    const cacheKey = `nepotune:album:${id}`;
+
+    const cached = await cache.get<{
+      album: any;
+      songs: any[];
+      cached: boolean;
+    }>(cacheKey);
 
     if (cached) {
-      logger.info('Returning cached album', { id });
-      return NextResponse.json({
-        album: cached,
-        cached: true,
-      });
+      logger.info('Album cache hit', { id, duration: Date.now() - startTime });
+      return NextResponse.json({ ...cached, cached: true });
     }
 
     logger.info('Fetching album', { id });
 
-    const seokey = id.replace('gn_album_', '');
-    const result = await getAlbumBySeokey(seokey);
+    const result = await getNepotuneAlbum(id);
 
-    if (result.error || !result.data) {
-      logger.error('GaanaPy album fetch failed', { error: result.error, id });
-      return NextResponse.json(
-        { error: result.error || 'Album not found' },
-        { status: 404 }
-      );
+    if (!result) {
+      logger.warn('Album not found', { id });
+      return NextResponse.json({ error: 'Album not found' }, { status: 404 });
     }
 
-    const album = result.data;
-
-    await cache.set(cacheKey, album, 30 * 60);
-
-    logger.info('Album fetched', { id, title: album.title });
-
-    return NextResponse.json({
-      album,
+    const response = {
+      album: result.album,
+      songs: result.songs,
       cached: false,
-    });
+    };
+
+    await cache.set(cacheKey, response, 15 * 60);
+
+    logger.info('Album fetched', { id, songsCount: result.songs.length, duration: Date.now() - startTime });
+
+    return NextResponse.json(response);
   } catch (error) {
     logger.error('Album error', { error: (error as Error).message });
-    return NextResponse.json(
-      { error: 'Failed to fetch album' },
-      { status: 500 }
-    );
+    return errorHandler(error);
   }
 }

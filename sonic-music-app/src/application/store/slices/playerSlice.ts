@@ -44,6 +44,39 @@ const shuffleArray = <T,>(array: T[]): T[] => {
   return shuffled;
 };
 
+const THROTTLE_MS = 250;
+let lastUpdateTime = 0;
+let pendingStatusUpdate: { progress: number; currentTime: number; duration: number; isPlaying: boolean } | null = null;
+let throttleTimeout: ReturnType<typeof setTimeout> | null = null;
+
+const throttleStatusUpdate = (
+  dispatch: (action: PayloadAction<{ progress: number; currentTime: number; duration: number; isPlaying: boolean }>) => void,
+  status: { progress: number; currentTime: number; duration: number; isPlaying: boolean }
+) => {
+  pendingStatusUpdate = status;
+  
+  if (throttleTimeout) return;
+  
+  const now = Date.now();
+  const timeSinceLastUpdate = now - lastUpdateTime;
+  
+  if (timeSinceLastUpdate >= THROTTLE_MS) {
+    dispatch(updatePlaybackStatus(pendingStatusUpdate));
+    lastUpdateTime = now;
+    pendingStatusUpdate = null;
+    throttleTimeout = null;
+  } else {
+    throttleTimeout = setTimeout(() => {
+      if (pendingStatusUpdate) {
+        dispatch(updatePlaybackStatus(pendingStatusUpdate));
+        lastUpdateTime = Date.now();
+        pendingStatusUpdate = null;
+      }
+      throttleTimeout = null;
+    }, THROTTLE_MS - timeSinceLastUpdate);
+  }
+};
+
 // Async Thunks
 export const playSong = createAsyncThunk(
   'player/playSong',
@@ -52,22 +85,20 @@ export const playSong = createAsyncThunk(
     const previousSong = state.currentSong;
     const previousDuration = state.currentTime * 1000;
     
-    // Record history of the previous song if it played for more than 5 seconds
     if (previousSong && previousDuration > 5000) {
       dispatch(addToHistory({ song: previousSong, duration: previousDuration / 1000, completed: false }));
     }
 
     const playbackService = PlaybackService.getInstance();
 
-    // Setup status callback once
     playbackService.setStatusCallback((status) => {
       if (status.isLoaded) {
-        dispatch(updatePlaybackStatus({
+        throttleStatusUpdate(dispatch, {
           progress: status.positionMillis / (status.durationMillis || 1),
           currentTime: status.positionMillis / 1000,
           duration: status.durationMillis || 0,
           isPlaying: status.isPlaying,
-        }));
+        });
       }
       if (status.didJustFinish) {
         dispatch(skipNext());
@@ -149,7 +180,7 @@ export const skipPrevious = createAsyncThunk(
     if (currentIndex > 0) {
       prevSong = queueToUse[currentIndex - 1];
     } else if (queueToUse.length > 0) {
-      prevSong = queueToUse[queueToUse.length - 1]; // Loop to end
+      prevSong = queueToUse[queueToUse.length - 1];
     }
 
     if (prevSong) {
@@ -189,6 +220,7 @@ const playerSlice = createSlice({
       const nextIndex = (modes.indexOf(state.repeat) + 1) % modes.length;
       state.repeat = modes[nextIndex];
     },
+    resetPlayer: () => initialState,
   },
   extraReducers: (builder) => {
     builder
@@ -232,6 +264,7 @@ export const {
   setQueue, 
   toggleShuffle, 
   toggleRepeat,
+  resetPlayer,
 } = playerSlice.actions;
 
 export default playerSlice.reducer;

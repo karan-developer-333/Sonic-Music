@@ -1,16 +1,17 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, memo, useMemo } from 'react';
 import {
   StyleSheet,
   Text,
   View,
-  ScrollView,
   Image,
   TouchableOpacity,
   Dimensions,
+  FlatList,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeContainer } from '../components/SafeContainer';
 import { SPACING, SIZES } from '../theme/theme';
-import { useAppSelector, useAppDispatch } from '../../application/store/hooks';
+import { useAppSelector, useAppDispatch, selectCurrentSong, selectThemeColors } from '../../application/store/hooks';
 import { playSong } from '../../application/store/slices/playerSlice';
 import { MiniPlayer } from '../components/MiniPlayer';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,16 +21,83 @@ import { MusicApiService } from '../../data/services/MusicApiService';
 
 const { width } = Dimensions.get('window');
 
-export const AlbumDetailScreen = ({ route, navigation }: any) => {
+const DEBOUNCE_MS = 300;
+
+function useDebounce(callback: () => void, delay: number) {
+  const timeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const callbackRef = React.useRef(callback);
+  
+  callbackRef.current = callback;
+
+  const debouncedCallback = useCallback(() => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    timeoutRef.current = setTimeout(() => {
+      callbackRef.current();
+    }, delay);
+  }, [delay]);
+
+  return debouncedCallback;
+}
+
+interface SongItemProps {
+  song: Song;
+  index: number;
+  onPress: (song: Song) => void;
+  colors: any;
+  currentSongId?: string;
+}
+
+const SongItem = memo<SongItemProps>(({ song, index, onPress, colors, currentSongId }) => {
+  const formatDuration = (ms: number) => {
+    const minutes = Math.floor(ms / 60000);
+    const seconds = Math.floor((ms % 60000) / 1000);
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  };
+
+  const isCurrentSong = currentSongId === song.id;
+
+  return (
+    <TouchableOpacity
+      style={[styles.songItem, isCurrentSong && { backgroundColor: colors.secondary }]}
+      onPress={() => onPress(song)}
+      activeOpacity={0.7}
+    >
+      <Text style={[styles.songIndex, { color: colors.textMuted }]}>{index + 1}</Text>
+      <Image source={{ uri: song.coverUrl }} style={styles.songImage} />
+      <View style={styles.songInfo}>
+        <Text 
+          style={[styles.songTitle, { color: isCurrentSong ? colors.primary : colors.text }]} 
+          numberOfLines={1}
+        >
+          {song.title}
+        </Text>
+        <Text style={[styles.songArtist, { color: colors.textMuted }]} numberOfLines={1}>
+          {song.artist}
+        </Text>
+      </View>
+      <Text style={[styles.songDuration, { color: colors.textMuted }]}>
+        {formatDuration(song.duration)}
+      </Text>
+    </TouchableOpacity>
+  );
+});
+
+SongItem.displayName = 'SongItem';
+
+export const AlbumDetailScreen = memo(({ route, navigation }: any) => {
   const { albumId } = route.params;
   const [album, setAlbum] = useState<Album | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSaved, setIsSaved] = useState(false);
 
-  const { currentSong } = useAppSelector(state => state.player);
-  const colors = useAppSelector(state => state.theme.colors);
   const dispatch = useAppDispatch();
+  const currentSong = useAppSelector(selectCurrentSong);
+  const colors = useAppSelector(selectThemeColors);
+
+  const currentSongId = currentSong?.id;
 
   useEffect(() => {
     const fetchAlbum = async () => {
@@ -48,6 +116,13 @@ export const AlbumDetailScreen = ({ route, navigation }: any) => {
     fetchAlbum();
   }, [albumId]);
 
+  const debouncedPlaySong = useDebounce(
+    useCallback((song: Song, queue: Song[]) => {
+      dispatch(playSong({ song, queue }));
+    }, [dispatch]),
+    DEBOUNCE_MS
+  );
+
   const handlePlayAll = useCallback(() => {
     if (!album?.tracks?.length) return;
     dispatch(playSong({ song: album.tracks[0], queue: album.tracks }));
@@ -61,8 +136,8 @@ export const AlbumDetailScreen = ({ route, navigation }: any) => {
 
   const handleSongPress = useCallback((song: Song) => {
     if (!album?.tracks) return;
-    dispatch(playSong({ song, queue: album.tracks }));
-  }, [album, dispatch]);
+    debouncedPlaySong(song, album.tracks);
+  }, [album, debouncedPlaySong]);
 
   const handleMiniPlayerPress = () => navigation.navigate('Player');
   const handleGoBack = () => navigation.goBack();
@@ -73,33 +148,34 @@ export const AlbumDetailScreen = ({ route, navigation }: any) => {
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
-  const renderSongItem = ({ item, index }: { item: Song; index: number }) => (
-    <TouchableOpacity
-      style={styles.songItem}
-      onPress={() => handleSongPress(item)}
-      activeOpacity={0.7}
-    >
-      <Text style={[styles.songIndex, { color: colors.textMuted }]}>{index + 1}</Text>
-      <Image source={{ uri: item.coverUrl }} style={styles.songImage} />
-      <View style={styles.songInfo}>
-        <Text style={[styles.songTitle, { color: colors.text }]} numberOfLines={1}>
-          {item.title}
-        </Text>
-        <Text style={[styles.songArtist, { color: colors.textMuted }]} numberOfLines={1}>
-          {item.artist}
-        </Text>
-      </View>
-      <Text style={[styles.songDuration, { color: colors.textMuted }]}>
-        {formatDuration(item.duration)}
-      </Text>
-    </TouchableOpacity>
+  const totalDuration = useMemo(() => 
+    album?.tracks?.reduce((acc, t) => acc + (t.duration || 0), 0) || 0,
+    [album?.tracks]
   );
+
+  const renderSongItem = useCallback(({ item, index }: { item: Song; index: number }) => (
+    <SongItem
+      song={item}
+      index={index}
+      onPress={handleSongPress}
+      colors={colors}
+      currentSongId={currentSongId}
+    />
+  ), [handleSongPress, colors, currentSongId]);
+
+  const keyExtractor = useCallback((item: Song) => item.id, []);
+
+  const getItemLayout = useCallback((_: any, index: number) => ({
+    length: 70,
+    offset: 70 * index,
+    index,
+  }), []);
 
   if (loading) {
     return (
       <SafeContainer style={styles.container}>
         <View style={styles.loadingContainer}>
-          <Ionicons name="hourglass" size={48} color={colors.primary} />
+          <ActivityIndicator size="large" color={colors.primary} />
           <Text style={[styles.loadingText, { color: colors.textMuted }]}>Loading album...</Text>
         </View>
       </SafeContainer>
@@ -129,8 +205,6 @@ export const AlbumDetailScreen = ({ route, navigation }: any) => {
     );
   }
 
-  const totalDuration = album.tracks?.reduce((acc, t) => acc + (t.duration || 0), 0) || 0;
-
   return (
     <SafeContainer style={styles.container}>
       <View style={styles.headerBar}>
@@ -157,81 +231,80 @@ export const AlbumDetailScreen = ({ route, navigation }: any) => {
         </View>
       </View>
 
-      <ScrollView 
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={[
-          styles.scrollContent,
-          currentSong && styles.scrollContentWithPlayer
-        ]}
-      >
-        <View style={styles.albumHeader}>
-          <Image 
-            source={{ uri: album.coverUrl || album.artwork }} 
-            style={styles.albumCover}
-          />
-          <View style={styles.albumInfo}>
-            <Text style={[styles.albumTitle, { color: colors.text }]}>{album.title}</Text>
-            <Text style={[styles.albumArtist, { color: colors.textMuted }]}>{album.artist}</Text>
-            <View style={styles.albumMeta}>
-              {album.genre && (
-                <View style={[styles.badge, { backgroundColor: colors.secondary }]}>
-                  <Text style={[styles.badgeText, { color: colors.text }]}>{album.genre}</Text>
+      <FlatList
+        data={album.tracks || []}
+        renderItem={renderSongItem}
+        keyExtractor={keyExtractor}
+        getItemLayout={getItemLayout}
+        ListHeaderComponent={
+          <>
+            <View style={styles.albumHeader}>
+              <Image 
+                source={{ uri: album.coverUrl || album.artwork }} 
+                style={styles.albumCover}
+              />
+              <View style={styles.albumInfo}>
+                <Text style={[styles.albumTitle, { color: colors.text }]}>{album.title}</Text>
+                <Text style={[styles.albumArtist, { color: colors.textMuted }]}>{album.artist}</Text>
+                <View style={styles.albumMeta}>
+                  {album.genre && (
+                    <View style={[styles.badge, { backgroundColor: colors.secondary }]}>
+                      <Text style={[styles.badgeText, { color: colors.text }]}>{album.genre}</Text>
+                    </View>
+                  )}
+                  {album.songCount && (
+                    <Text style={[styles.metaText, { color: colors.textMuted }]}>
+                      {album.songCount} songs
+                    </Text>
+                  )}
+                  {totalDuration > 0 && (
+                    <Text style={[styles.metaText, { color: colors.textMuted }]}>
+                      {Math.floor(totalDuration / 60000)} min
+                    </Text>
+                  )}
                 </View>
-              )}
-              {album.songCount && (
-                <Text style={[styles.metaText, { color: colors.textMuted }]}>
-                  {album.songCount} songs
-                </Text>
-              )}
-              {totalDuration > 0 && (
-                <Text style={[styles.metaText, { color: colors.textMuted }]}>
-                  {Math.floor(totalDuration / 60000)} min
-                </Text>
-              )}
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.actionRow}>
-          <TouchableOpacity 
-            style={[styles.playButton, { backgroundColor: colors.primary }]}
-            onPress={handlePlayAll}
-          >
-            <Ionicons name="play" size={24} color="#000" />
-            <Text style={styles.playButtonText}>Play All</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.shuffleButton, { backgroundColor: colors.secondary }]}
-            onPress={handleShufflePlay}
-          >
-            <Feather name="shuffle" size={24} color={colors.text} />
-          </TouchableOpacity>
-        </View>
-
-        {album.tracks && album.tracks.length > 0 ? (
-          <View style={styles.trackList}>
-            {album.tracks.map((song, index) => (
-              <View key={song.id}>
-                {renderSongItem({ item: song, index })}
               </View>
-            ))}
-          </View>
-        ) : (
+            </View>
+
+            <View style={styles.actionRow}>
+              <TouchableOpacity 
+                style={[styles.playButton, { backgroundColor: colors.primary }]}
+                onPress={handlePlayAll}
+              >
+                <Ionicons name="play" size={24} color="#000" />
+                <Text style={styles.playButtonText}>Play All</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.shuffleButton, { backgroundColor: colors.secondary }]}
+                onPress={handleShufflePlay}
+              >
+                <Feather name="shuffle" size={24} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+          </>
+        }
+        ListEmptyComponent={
           <View style={styles.emptyTracks}>
             <Ionicons name="musical-note" size={48} color={colors.textMuted} />
             <Text style={[styles.emptyText, { color: colors.textMuted }]}>
               No tracks available
             </Text>
           </View>
-        )}
-
-        <View style={{ height: 100 }} />
-      </ScrollView>
+        }
+        ListFooterComponent={<View style={{ height: 100 }} />}
+        showsVerticalScrollIndicator={false}
+        initialNumToRender={10}
+        maxToRenderPerBatch={10}
+        windowSize={10}
+        removeClippedSubviews={true}
+      />
 
       {currentSong && <MiniPlayer onPress={handleMiniPlayerPress} />}
     </SafeContainer>
   );
-};
+});
+
+AlbumDetailScreen.displayName = 'AlbumDetailScreen';
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
@@ -264,8 +337,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  scrollContent: { paddingBottom: 20 },
-  scrollContentWithPlayer: { paddingBottom: 180 },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -356,6 +427,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.lg,
   },
   songIndex: {
     width: 30,

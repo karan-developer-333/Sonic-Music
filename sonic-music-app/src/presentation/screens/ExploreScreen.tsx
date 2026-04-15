@@ -22,7 +22,6 @@ import { MusicApiService } from '../../data/services/MusicApiService';
 import { Ionicons } from '@expo/vector-icons';
 import { Feather } from '@expo/vector-icons';
 
-
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - SPACING.lg * 3) / 2;
 const ALBUM_CARD_WIDTH = (width - SPACING.lg * 3) / 2.5;
@@ -32,7 +31,6 @@ const TYPE_TABS = [
   { id: 'songs', label: 'Songs', icon: 'music' as const },
   { id: 'albums', label: 'Albums', icon: 'disc' as const },
 ];
-
 
 interface ExploreItem {
   id: string;
@@ -58,7 +56,6 @@ export const ExploreScreen = ({ navigation }: any) => {
   const colors = useAppSelector((state: any) => state.theme.colors);
   const dispatch = useAppDispatch();
 
-
   const flatListRef = useRef<FlatList>(null);
 
   const fetchItems = useCallback(async (pageNum: number, refresh = false) => {
@@ -75,9 +72,10 @@ export const ExploreScreen = ({ navigation }: any) => {
       setError(null);
 
       if (activeTab === 'songs') {
-        const response = await MusicApiService.getExploreSongs(pageNum, 20, selectedLanguage);
+        const language = selectedLanguage === 'All' ? undefined : selectedLanguage;
+        const response = await MusicApiService.getExploreSongs(pageNum, 20, language);
+        
         const newItems: ExploreItem[] = response.items.map((song: Song) => ({
-
           id: song.id,
           type: 'song' as const,
           title: song.title,
@@ -94,14 +92,15 @@ export const ExploreScreen = ({ navigation }: any) => {
 
         setHasMore(response.hasMore);
       } else {
-        const response = await MusicApiService.getAlbums(pageNum, 20);
+        const language = selectedLanguage === 'All' ? undefined : selectedLanguage;
+        const response = await MusicApiService.getExploreAlbums(pageNum, 20, language);
+        
         const newItems: ExploreItem[] = response.items.map((album: Album) => ({
-
           id: album.id,
           type: 'album' as const,
           title: album.title,
           artist: album.artist,
-          coverUrl: album.coverUrl,
+          coverUrl: album.coverUrl || album.artwork || '',
         }));
 
         if (refresh || pageNum === 1) {
@@ -148,11 +147,11 @@ export const ExploreScreen = ({ navigation }: any) => {
       coverUrl: item.coverUrl,
       audioUrl: item.streamUrl || '',
       duration: 0,
-      source: 'gaana',
+      source: 'saavn',
     };
-    dispatch(playSong({ song, queue: items.filter((i: ExploreItem) => i.type === 'song') as any }));
+    const songItems = items.filter((i: ExploreItem) => i.type === 'song') as ExploreItem[];
+    dispatch(playSong({ song, queue: songItems as any }));
   }, [dispatch, items]);
-
 
   const handleAlbumPress = useCallback((item: ExploreItem) => {
     navigation.navigate('AlbumDetail', { albumId: item.id, title: item.title });
@@ -215,7 +214,6 @@ export const ExploreScreen = ({ navigation }: any) => {
     );
   };
 
-
   return (
     <SafeContainer style={styles.container}>
       <View style={styles.header}>
@@ -250,7 +248,6 @@ export const ExploreScreen = ({ navigation }: any) => {
         })}
       </View>
 
-
       <View style={styles.filterContainer}>
         <ScrollView
           horizontal
@@ -270,11 +267,12 @@ export const ExploreScreen = ({ navigation }: any) => {
 
       {loading && !refreshing ? (
         <View style={styles.loadingContainer}>
-          <Ionicons name="hourglass" size={48} color={colors.primary} />
+          <ActivityIndicator size="large" color={colors.primary} />
           <Text style={[styles.loadingText, { color: colors.textMuted }]}>Loading...</Text>
         </View>
-      ) : error ? (
+      ) : error && !items.length ? (
         <View style={styles.errorContainer}>
+          <Ionicons name="alert-circle" size={48} color={colors.error} />
           <Text style={[styles.errorText, { color: colors.text }]}>{error}</Text>
           <TouchableOpacity
             style={[styles.retryButton, { backgroundColor: colors.primary }]}
@@ -289,7 +287,6 @@ export const ExploreScreen = ({ navigation }: any) => {
           data={items}
           keyExtractor={(item: ExploreItem) => `${item.type}-${item.id}`}
           renderItem={activeTab === 'songs' ? renderSongItem : renderAlbumItem}
-
           numColumns={activeTab === 'songs' ? 1 : 2}
           key={activeTab}
           columnWrapperStyle={activeTab === 'albums' ? styles.columnWrapper : undefined}

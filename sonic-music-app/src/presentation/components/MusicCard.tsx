@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo, useCallback, useRef } from 'react';
 import { StyleSheet, Text, Image, TouchableOpacity, View } from 'react-native';
 import { Song } from '../../domain/models/MusicModels';
 import { SPACING, SIZES } from '../theme/theme';
@@ -11,13 +11,34 @@ interface MusicCardProps {
   width?: number;
 }
 
-export const MusicCard: React.FC<MusicCardProps> = ({ song, onPress, width = 160 }) => {
+const DEBOUNCE_MS = 300;
+
+function useDebounce(callback: (song: Song) => void, delay: number) {
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const callbackRef = useRef(callback);
+  
+  callbackRef.current = callback;
+
+  const debouncedCallback = useCallback((song: Song) => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    timeoutRef.current = setTimeout(() => {
+      callbackRef.current(song);
+    }, delay);
+  }, [delay]);
+
+  return debouncedCallback;
+}
+
+export const MusicCard: React.FC<MusicCardProps> = memo(({ song, onPress, width = 160 }) => {
   const colors = useAppSelector(state => state.theme.colors);
+  const debouncedPress = useDebounce(onPress, DEBOUNCE_MS);
 
   return (
     <TouchableOpacity
       style={[styles.container, { width, backgroundColor: colors.card }]}
-      onPress={() => onPress(song)}
+      onPress={() => debouncedPress(song)}
       activeOpacity={0.8}
     >
       <Image source={{ uri: song.coverUrl }} style={[styles.cover, { backgroundColor: colors.secondary }]} />
@@ -30,7 +51,9 @@ export const MusicCard: React.FC<MusicCardProps> = ({ song, onPress, width = 160
       </View>
     </TouchableOpacity>
   );
-};
+});
+
+MusicCard.displayName = 'MusicCard';
 
 const styles = StyleSheet.create({
   container: {
