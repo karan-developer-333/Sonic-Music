@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { StyleSheet, Text, View, Image, TouchableOpacity } from 'react-native';
 import { Song } from '../../domain/models/MusicModels';
-import { useAppSelector } from '../../application/store/hooks';
+import { useAppSelector, useAppDispatch } from '../../application/store/hooks';
 import { SPACING } from '../theme/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { Feather } from '@expo/vector-icons';
+import { addToLiked, removeFromLiked, selectIsSongLiked } from '../../application/store/slices/playlistSlice';
 
 interface SongListItemProps {
   song: Song;
@@ -13,6 +14,7 @@ interface SongListItemProps {
   showCover?: boolean;
   showDuration?: boolean;
   showActions?: boolean;
+  showHeart?: boolean;
   isPlaying?: boolean;
   isCurrentSong?: boolean;
   index?: number;
@@ -26,13 +28,16 @@ export const SongListItem: React.FC<SongListItemProps> = ({
   showCover = true,
   showDuration = false,
   showActions = true,
+  showHeart = true,
   isPlaying = false,
   isCurrentSong = false,
   index,
   showIndex = false,
 }) => {
+  const dispatch = useAppDispatch();
   const colors = useAppSelector(state => state.theme.colors);
   const { isPlaying: playerIsPlaying, currentSong } = useAppSelector(state => state.player);
+  const isLiked = useAppSelector(selectIsSongLiked(song.id));
 
   const isActive = currentSong?.id === song.id;
   const songIsPlaying = isActive && playerIsPlaying;
@@ -51,6 +56,15 @@ export const SongListItem: React.FC<SongListItemProps> = ({
     e.stopPropagation();
     onMorePress?.(song);
   };
+
+  const handleHeartPress = useCallback((e: any) => {
+    e.stopPropagation();
+    if (isLiked) {
+      dispatch(removeFromLiked(song.id));
+    } else {
+      dispatch(addToLiked({ ...song, favoritedAt: new Date().toISOString() }));
+    }
+  }, [dispatch, song, isLiked]);
 
   return (
     <TouchableOpacity
@@ -117,6 +131,20 @@ export const SongListItem: React.FC<SongListItemProps> = ({
         <Text style={[styles.duration, { color: colors.textMuted }]}>
           {formatDuration(song.duration)}
         </Text>
+      )}
+
+      {showHeart && (
+        <TouchableOpacity
+          style={styles.moreButton}
+          onPress={handleHeartPress}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Ionicons
+            name={isLiked ? 'heart' : 'heart-outline'}
+            size={20}
+            color={isLiked ? colors.danger : colors.textMuted}
+          />
+        </TouchableOpacity>
       )}
 
       {showActions && onMorePress && (

@@ -18,6 +18,7 @@ model User {
   playlists    Playlist[]
   savedAlbums  SavedAlbum[]
   history      ListeningHistory[]
+  favorites    Favorite[]
 
   @@map("users")
 }
@@ -91,4 +92,23 @@ model ListeningHistory {
 
   @@index([userId, playedAt])
   @@map("listening_history")
+}
+
+model Favorite {
+  id        String   @id @default(cuid())
+  favoritedAt DateTime @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  songId    String
+  songTitle String
+  artist    String
+  coverUrl  String?
+  source    String   @default("saavn")
+  duration  Int      @default(0)
+
+  @@unique([userId, songId])
+  @@index([userId, favoritedAt])
+  @@map("favorites")
 }

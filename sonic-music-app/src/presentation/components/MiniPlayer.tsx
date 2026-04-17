@@ -41,9 +41,10 @@ function useDebounce(callback: () => void, delay: number) {
 
 interface MiniPlayerProps {
   onPress: () => void;
+  onQueuePress?: () => void;
 }
 
-export const MiniPlayer: React.FC<MiniPlayerProps> = memo(({ onPress }) => {
+export const MiniPlayer: React.FC<MiniPlayerProps> = memo(({ onPress, onQueuePress }) => {
   const insets = useSafeAreaInsets();
   const dispatch = useAppDispatch();
   
@@ -155,6 +156,15 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = memo(({ onPress }) => {
           >
             <Ionicons name="play-skip-forward" size={24} color={colors.text} />
           </TouchableOpacity>
+
+          {onQueuePress && (
+            <TouchableOpacity
+              style={styles.controlButton}
+              onPress={onQueuePress}
+            >
+              <Ionicons name="list" size={22} color={colors.text} />
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     </TouchableOpacity>

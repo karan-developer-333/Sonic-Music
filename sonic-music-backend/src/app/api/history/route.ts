@@ -67,55 +67,59 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validated = addHistorySchema.parse(body);
 
-    const historyEntry = await prisma.listeningHistory.create({
-      data: {
-        userId: user.userId,
-        songId: validated.songId,
-        songTitle: validated.songTitle,
-        artist: validated.artist,
-        coverUrl: validated.coverUrl,
-        source: validated.source,
-        duration: validated.duration,
-      },
-    });
-
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-    await prisma.listeningHistory.deleteMany({
-      where: {
-        userId: user.userId,
-        playedAt: { lt: thirtyDaysAgo },
-      },
-    });
-
-    const maxEntries = 1000;
-    const totalCount = await prisma.listeningHistory.count({
-      where: { userId: user.userId },
-    });
-
-    if (totalCount > maxEntries) {
-      const oldestToDelete = await prisma.listeningHistory.findMany({
-        where: { userId: user.userId },
-        orderBy: { playedAt: 'asc' },
-        take: totalCount - maxEntries,
-        select: { id: true },
-      });
-
-      await prisma.listeningHistory.deleteMany({
-        where: {
-          id: { in: oldestToDelete.map(e => e.id) },
+    const result = await prisma.$transaction(async (tx) => {
+      const historyEntry = await tx.listeningHistory.create({
+        data: {
+          userId: user.userId,
+          songId: validated.songId,
+          songTitle: validated.songTitle,
+          artist: validated.artist,
+          coverUrl: validated.coverUrl,
+          source: validated.source,
+          duration: validated.duration,
         },
       });
-    }
+
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+      await tx.listeningHistory.deleteMany({
+        where: {
+          userId: user.userId,
+          playedAt: { lt: thirtyDaysAgo },
+        },
+      });
+
+      const maxEntries = 1000;
+      const totalCount = await tx.listeningHistory.count({
+        where: { userId: user.userId },
+      });
+
+      if (totalCount > maxEntries) {
+        const oldestToDelete = await tx.listeningHistory.findMany({
+          where: { userId: user.userId },
+          orderBy: { playedAt: 'asc' },
+          take: totalCount - maxEntries,
+          select: { id: true },
+        });
+
+        await tx.listeningHistory.deleteMany({
+          where: {
+            id: { in: oldestToDelete.map(e => e.id) },
+          },
+        });
+      }
+
+      return historyEntry;
+    });
 
     logger.info('History entry added', { songId: validated.songId, userId: user.userId });
 
     return NextResponse.json({
-      id: historyEntry.songId,
-      title: historyEntry.songTitle,
-      artist: historyEntry.artist,
-      playedAt: historyEntry.playedAt,
+      id: result.songId,
+      title: result.songTitle,
+      artist: result.artist,
+      playedAt: result.playedAt,
     }, { status: 201 });
   } catch (error) {
     if (error instanceof z.ZodError) {

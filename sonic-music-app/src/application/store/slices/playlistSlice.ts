@@ -1,4 +1,4 @@
-import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+import { createSlice, PayloadAction, createAsyncThunk } from '@reduxjs/toolkit';
 import { Song } from '../../../domain/models/MusicModels';
 
 interface Playlist {
@@ -11,6 +11,10 @@ interface Playlist {
 
 interface PlaylistState {
   playlists: Playlist[];
+  pendingSync: Song[];
+  pendingRemove: string[];
+  lastSyncedAt: number | null;
+  isSyncing: boolean;
 }
 
 const initialPlaylists: Playlist[] = [
@@ -32,6 +36,10 @@ const initialPlaylists: Playlist[] = [
 
 const initialState: PlaylistState = {
   playlists: initialPlaylists,
+  pendingSync: [],
+  pendingRemove: [],
+  lastSyncedAt: null,
+  isSyncing: false,
 };
 
 const playlistSlice = createSlice({
@@ -66,10 +74,77 @@ const playlistSlice = createSlice({
         playlist.songs = playlist.songs.filter((s) => s.id !== songId);
       }
     },
+    addToLiked: (state, action: PayloadAction<Song>) => {
+      const likedPlaylist = state.playlists.find((p) => p.id === 'liked');
+      if (likedPlaylist && !likedPlaylist.songs.find((s) => s.id === action.payload.id)) {
+        likedPlaylist.songs.unshift(action.payload);
+        if (!state.pendingSync.find((s) => s.id === action.payload.id)) {
+          state.pendingSync.push(action.payload);
+        }
+        state.pendingRemove = state.pendingRemove.filter((id) => id !== action.payload.id);
+      }
+    },
+    removeFromLiked: (state, action: PayloadAction<string>) => {
+      const likedPlaylist = state.playlists.find((p) => p.id === 'liked');
+      if (likedPlaylist) {
+        likedPlaylist.songs = likedPlaylist.songs.filter((s) => s.id !== action.payload);
+        if (!state.pendingRemove.find((id) => id === action.payload)) {
+          state.pendingRemove.push(action.payload);
+        }
+        state.pendingSync = state.pendingSync.filter((s) => s.id !== action.payload);
+      }
+    },
+    mergeServerFavorites: (state, action: PayloadAction<Song[]>) => {
+      const likedPlaylist = state.playlists.find((p) => p.id === 'liked');
+      if (!likedPlaylist) return;
+
+      const serverFavorites = action.payload;
+      const serverIds = new Set(serverFavorites.map((s) => s.id));
+      
+      for (const song of state.pendingSync) {
+        if (!likedPlaylist.songs.find((s) => s.id === song.id)) {
+          likedPlaylist.songs.push(song);
+        }
+      }
+      
+      for (const serverSong of serverFavorites) {
+        if (!likedPlaylist.songs.find((s) => s.id === serverSong.id)) {
+          likedPlaylist.songs.push(serverSong);
+        }
+      }
+      
+      likedPlaylist.songs.sort((a, b) => {
+        const serverA = serverFavorites.find((s) => s.id === a.id);
+        const serverB = serverFavorites.find((s) => s.id === b.id);
+        const dateA = serverA?.favoritedAt ? new Date(serverA.favoritedAt).getTime() : 0;
+        const dateB = serverB?.favoritedAt ? new Date(serverB.favoritedAt).getTime() : 0;
+        return dateB - dateA;
+      });
+
+      state.pendingSync = [];
+      state.lastSyncedAt = Date.now();
+    },
+    setSyncing: (state, action: PayloadAction<boolean>) => {
+      state.isSyncing = action.payload;
+    },
+    clearPendingSync: (state) => {
+      state.pendingSync = [];
+      state.pendingRemove = [];
+    },
   },
 });
 
-export const { createPlaylist, deletePlaylist, addToPlaylist, removeFromPlaylist } = playlistSlice.actions;
+export const { 
+  createPlaylist, 
+  deletePlaylist, 
+  addToPlaylist, 
+  removeFromPlaylist,
+  addToLiked,
+  removeFromLiked,
+  mergeServerFavorites,
+  setSyncing,
+  clearPendingSync,
+} = playlistSlice.actions;
 export default playlistSlice.reducer;
 
 export const selectPlaylists = (state: { playlist: PlaylistState }) => state.playlist.playlists;
@@ -79,3 +154,7 @@ export const selectLikedSongs = (state: { playlist: PlaylistState }) =>
   state.playlist.playlists.find((p) => p.id === 'liked')?.songs || [];
 export const selectIsSongLiked = (songId: string) => (state: { playlist: PlaylistState }) => 
   state.playlist.playlists.find((p) => p.id === 'liked')?.songs.some((s) => s.id === songId) || false;
+export const selectPendingSync = (state: { playlist: PlaylistState }) => state.playlist.pendingSync;
+export const selectPendingRemove = (state: { playlist: PlaylistState }) => state.playlist.pendingRemove;
+export const selectIsSyncing = (state: { playlist: PlaylistState }) => state.playlist.isSyncing;
+export const selectLastSyncedAt = (state: { playlist: PlaylistState }) => state.playlist.lastSyncedAt;

@@ -25,7 +25,7 @@ import {
   selectThemeColors,
 } from '../../application/store/hooks';
 import { togglePlayback, skipNext, skipPrevious, seekToPosition, toggleShuffle, toggleRepeat } from '../../application/store/slices/playerSlice';
-import { addToPlaylist, removeFromPlaylist } from '../../application/store/slices/playlistSlice';
+import { addToLiked, removeFromLiked } from '../../application/store/slices/playlistSlice';
 import { PlaybackService } from '../../application/services/PlaybackService';
 
 const { width } = Dimensions.get('window');
@@ -181,9 +181,9 @@ const PlayerScreen = memo(({ navigation }: any) => {
   const handleLikePress = useCallback(() => {
     if (currentSong) {
       if (isLiked) {
-        dispatch(removeFromPlaylist({ playlistId: 'liked', songId: currentSong.id }));
+        dispatch(removeFromLiked(currentSong.id));
       } else {
-        dispatch(addToPlaylist({ playlistId: 'liked', song: currentSong }));
+        dispatch(addToLiked({ ...currentSong, favoritedAt: new Date().toISOString() }));
       }
     }
   }, [currentSong, isLiked, dispatch]);

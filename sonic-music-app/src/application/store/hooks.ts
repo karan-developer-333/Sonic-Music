@@ -58,6 +58,11 @@ export const selectPlayerError = createSelector(
   (player) => player.error
 );
 
+export const selectQueueDrawerOpen = createSelector(
+  [selectPlayerState],
+  (player) => player.queueDrawerOpen
+);
+
 // Composite selector for player essential data
 export const selectPlayerEssential = createSelector(
   [selectPlayerState],

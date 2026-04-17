@@ -7,6 +7,7 @@ export interface Song {
   duration: number;
   categoryId?: string;
   source?: 'gaana' | 'saavn';
+  favoritedAt?: string;
 }
 
 export interface Album {

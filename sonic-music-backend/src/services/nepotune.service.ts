@@ -408,12 +408,11 @@ export async function getTrendingNepotune(language = 'hindi', limit = 50): Promi
       `${language} trending`,
     ];
 
-    const allSongs: NormalizedSong[] = [];
+    const results = await Promise.all(
+      queries.map(query => searchNepotuneSongs(query, 1, Math.min(limit, 20)))
+    );
 
-    for (const query of queries) {
-      const result = await searchNepotuneSongs(query, 1, Math.min(limit, 20));
-      allSongs.push(...result.songs);
-    }
+    const allSongs: NormalizedSong[] = results.flatMap(r => r.songs);
 
     const seen = new Set<string>();
     const unique = allSongs.filter(song => {

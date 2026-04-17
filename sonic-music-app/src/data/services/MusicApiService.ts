@@ -516,6 +516,56 @@ export class MusicApiService {
     return MediaService.getLocalSongs();
   }
 
+  // --- Favorites ---
+  static async getFavorites(page = 1, limit = 50): Promise<{ songs: Song[]; hasMore: boolean }> {
+    try {
+      const response = await apiClient.get<{
+        favorites: NormalizedSongResponse[];
+        pagination: { hasMore: boolean };
+      }>(`/favorites?page=${page}&limit=${limit}`);
+      return {
+        songs: response.data.favorites.map(this.mapSongResponseToSong),
+        hasMore: response.data.pagination.hasMore,
+      };
+    } catch {
+      return { songs: [], hasMore: false };
+    }
+  }
+
+  static async addToFavorites(song: Song): Promise<boolean> {
+    try {
+      await apiClient.post('/favorites', {
+        songId: song.id,
+        songTitle: song.title,
+        artist: song.artist,
+        coverUrl: song.coverUrl,
+        source: song.source || 'saavn',
+        duration: song.duration,
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  static async removeFromFavorites(songId: string): Promise<boolean> {
+    try {
+      await apiClient.delete(`/favorites/${songId}`);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  static async checkIsFavorite(songId: string): Promise<boolean> {
+    try {
+      const response = await apiClient.get<{ isFavorite: boolean }>(`/favorites/${songId}`);
+      return response.data.isFavorite;
+    } catch {
+      return false;
+    }
+  }
+
   // --- Cache Management ---
   static clearCache(): void {
     ApiCache.clear();

@@ -18,6 +18,7 @@ interface PlayerState {
   repeat: RepeatMode;
   isLoading: boolean;
   error: string | null;
+  queueDrawerOpen: boolean;
 }
 
 const initialState: PlayerState = {
@@ -33,6 +34,7 @@ const initialState: PlayerState = {
   repeat: 'none',
   isLoading: false,
   error: null,
+  queueDrawerOpen: false,
 };
 
 const shuffleArray = <T,>(array: T[]): T[] => {
@@ -209,6 +211,29 @@ const playerSlice = createSlice({
         state.shuffleQueue = shuffleArray(action.payload);
       }
     },
+    reorderQueue: (state, action: PayloadAction<{ fromIndex: number; toIndex: number }>) => {
+      const { fromIndex, toIndex } = action.payload;
+      const [removed] = state.queue.splice(fromIndex, 1);
+      state.queue.splice(toIndex, 0, removed);
+      if (state.shuffle) {
+        const [removedShuffle] = state.shuffleQueue.splice(fromIndex, 1);
+        state.shuffleQueue.splice(toIndex, 0, removedShuffle);
+      }
+    },
+    removeFromQueue: (state, action: PayloadAction<number>) => {
+      const index = action.payload;
+      if (index >= 0 && index < state.queue.length) {
+        state.queue.splice(index, 1);
+      }
+    },
+    clearQueue: (state) => {
+      state.queue = [];
+      state.originalQueue = [];
+      state.shuffleQueue = [];
+    },
+    setQueueDrawerOpen: (state, action: PayloadAction<boolean>) => {
+      state.queueDrawerOpen = action.payload;
+    },
     toggleShuffle: (state) => {
       state.shuffle = !state.shuffle;
       if (state.shuffle && state.originalQueue.length > 0) {
@@ -262,6 +287,10 @@ const playerSlice = createSlice({
 export const { 
   updatePlaybackStatus, 
   setQueue, 
+  reorderQueue,
+  removeFromQueue,
+  clearQueue,
+  setQueueDrawerOpen,
   toggleShuffle, 
   toggleRepeat,
   resetPlayer,

@@ -26,13 +26,13 @@ export async function GET(
   try {
     const { id } = await params;
     const user = requireAuth(request);
+    const { searchParams } = new URL(request.url);
+    const limit = parseInt(searchParams.get('limit') || '50', 10);
+    const offset = parseInt(searchParams.get('offset') || '0', 10);
 
     const playlist = await prisma.playlist.findUnique({
       where: { id },
       include: {
-        songs: {
-          orderBy: { addedAt: 'desc' },
-        },
         user: {
           select: { id: true, name: true },
         },
@@ -47,16 +47,26 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
+    const [songs, totalCount] = await Promise.all([
+      prisma.playlistSong.findMany({
+        where: { playlistId: id },
+        orderBy: { addedAt: 'desc' },
+        take: limit,
+        skip: offset,
+      }),
+      prisma.playlistSong.count({ where: { playlistId: id } }),
+    ]);
+
     return NextResponse.json({
       id: playlist.id,
       name: playlist.name,
       description: playlist.description,
-      coverUrl: playlist.coverUrl || playlist.songs[0]?.coverUrl,
+      coverUrl: playlist.coverUrl || songs[0]?.coverUrl,
       isPublic: playlist.isPublic,
-      songCount: playlist.songs.length,
+      songCount: totalCount,
       createdAt: playlist.createdAt,
       updatedAt: playlist.updatedAt,
-      songs: playlist.songs.map(s => ({
+      songs: songs.map(s => ({
         id: s.songId,
         title: s.songTitle,
         artist: s.artist,
@@ -66,6 +76,12 @@ export async function GET(
         duration: s.duration,
         addedAt: s.addedAt,
       })),
+      pagination: {
+        limit,
+        offset,
+        total: totalCount,
+        hasMore: offset + limit < totalCount,
+      },
     });
   } catch (error) {
     logger.error('Get playlist error', { error: (error as Error).message });

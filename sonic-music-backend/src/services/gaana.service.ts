@@ -6,8 +6,8 @@ import type { NormalizedSong, ServiceResponse, ImageUrl, StreamUrl } from '../ty
 
 const GAANAPY_URL = process.env.GAANAPY_URL || 'http://127.0.0.1:8000';
 const CIRCUIT_BREAKER_KEY = 'gaana';
-const MAX_RETRIES = 0;
-const GAANA_TIMEOUT = 3000;
+const MAX_RETRIES = 2;
+const GAANA_TIMEOUT = 8000;
 
 interface GaanaTrack {
   seokey: string;

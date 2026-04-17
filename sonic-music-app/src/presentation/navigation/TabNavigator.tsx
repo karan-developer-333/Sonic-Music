@@ -1,20 +1,40 @@
-import React from 'react';
-import { View, StyleSheet, Platform } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { View, StyleSheet, Platform, TouchableOpacity } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HomeScreen, ExploreScreen, SearchScreen, LibraryScreen, ProfileScreen } from '../screens';
 import { SIZES, SPACING } from '../theme/theme';
-import { useAppSelector } from '../../application/store/hooks';
+import { useAppSelector, useAppDispatch } from '../../application/store/hooks';
 import { Feather } from '@expo/vector-icons';
 import { Ionicons } from '@expo/vector-icons';
 import { MiniPlayer } from '../components/MiniPlayer';
+import { QueueDrawer } from '../components/QueueDrawer';
+import { setQueueDrawerOpen } from '../../application/store/slices/playerSlice';
 
 const Tab = createBottomTabNavigator();
 
 export const TabNavigator = () => {
   const insets = useSafeAreaInsets();
+  const dispatch = useAppDispatch();
+  const navigation = useNavigation();
   const currentSong = useAppSelector(state => state.player.currentSong);
+  const queueDrawerOpen = useAppSelector(state => state.player.queueDrawerOpen);
   const colors = useAppSelector(state => state.theme.colors);
+  const [queueVisible, setQueueVisible] = useState(false);
+
+  const handleOpenPlayer = useCallback(() => {
+    (navigation as any).navigate('Player');
+  }, [navigation]);
+
+  const handleOpenQueue = useCallback(() => {
+    dispatch(setQueueDrawerOpen(true));
+    setQueueVisible(true);
+  }, [dispatch]);
+
+  const handleCloseQueue = useCallback(() => {
+    setQueueVisible(false);
+  }, []);
 
   return (
     <View style={styles.container}>
@@ -73,6 +93,10 @@ export const TabNavigator = () => {
           }}
         />
       </Tab.Navigator>
+      {currentSong && (
+        <MiniPlayer onPress={handleOpenPlayer} onQueuePress={handleOpenQueue} />
+      )}
+      <QueueDrawer visible={queueVisible || queueDrawerOpen} onClose={handleCloseQueue} />
     </View>
   );
 };
