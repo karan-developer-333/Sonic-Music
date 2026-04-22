@@ -7,15 +7,14 @@ import {
   TouchableOpacity,
   Dimensions,
   FlatList,
-  ActivityIndicator,
+  ActivityIndicator, 
 } from 'react-native';
 import { SafeContainer } from '../components/SafeContainer';
 import { SPACING, SIZES } from '../theme/theme';
-import { useAppSelector, useAppDispatch, selectCurrentSong, selectThemeColors } from '../../application/store/hooks';
-import { playSong } from '../../application/store/slices/playerSlice';
+import { useAppSelector, useAppDispatch, selectThemeColors } from '../../application/store/hooks';
 import { MiniPlayer } from '../components/MiniPlayer';
-import { Ionicons } from '@expo/vector-icons';
-import { Feather } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import Feather from '@expo/vector-icons/Feather';
 import { Song, Album } from '../../domain/models/MusicModels';
 import { MusicApiService } from '../../data/services/MusicApiService';
 
@@ -86,6 +85,9 @@ const SongItem = memo<SongItemProps>(({ song, index, onPress, colors, currentSon
 
 SongItem.displayName = 'SongItem';
 
+import { useQueue } from '../../application/hooks/useQueue';
+import { createQueueItem } from '../../domain/models/QueueItem';
+
 export const AlbumDetailScreen = memo(({ route, navigation }: any) => {
   const { albumId } = route.params;
   const [album, setAlbum] = useState<Album | null>(null);
@@ -93,9 +95,10 @@ export const AlbumDetailScreen = memo(({ route, navigation }: any) => {
   const [error, setError] = useState<string | null>(null);
   const [isSaved, setIsSaved] = useState(false);
 
-  const dispatch = useAppDispatch();
-  const currentSong = useAppSelector(selectCurrentSong);
-  const colors = useAppSelector(selectThemeColors);
+  const colors = useAppSelector(state => selectThemeColors(state)) as any;
+  
+  // Zustand State
+  const { currentSong, playSong: playZustandSong } = useQueue();
 
   const currentSongId = currentSong?.id;
 
@@ -116,28 +119,56 @@ export const AlbumDetailScreen = memo(({ route, navigation }: any) => {
     fetchAlbum();
   }, [albumId]);
 
-  const debouncedPlaySong = useDebounce(
-    useCallback((song: Song, queue: Song[]) => {
-      dispatch(playSong({ song, queue }));
-    }, [dispatch]),
-    DEBOUNCE_MS
-  );
-
   const handlePlayAll = useCallback(() => {
     if (!album?.tracks?.length) return;
-    dispatch(playSong({ song: album.tracks[0], queue: album.tracks }));
-  }, [album, dispatch]);
+    
+    const queueItems = album.tracks.map(s => createQueueItem({
+      id: s.id,
+      title: s.title,
+      artist: s.artist,
+      coverUrl: s.coverUrl,
+      audioUrl: s.audioUrl,
+      duration: s.duration,
+      source: s.source,
+    }));
+    
+    playZustandSong(queueItems, 0);
+  }, [album, playZustandSong]);
 
   const handleShufflePlay = useCallback(() => {
     if (!album?.tracks?.length) return;
-    const shuffled = [...album.tracks].sort(() => Math.random() - 0.5);
-    dispatch(playSong({ song: shuffled[0], queue: shuffled }));
-  }, [album, dispatch]);
+    
+    const queueItems = album.tracks.map(s => createQueueItem({
+      id: s.id,
+      title: s.title,
+      artist: s.artist,
+      coverUrl: s.coverUrl,
+      audioUrl: s.audioUrl,
+      duration: s.duration,
+      source: s.source,
+    }));
+    
+    // Shuffle the queue
+    const shuffled = [...queueItems].sort(() => Math.random() - 0.5);
+    playZustandSong(shuffled, 0);
+  }, [album, playZustandSong]);
 
   const handleSongPress = useCallback((song: Song) => {
     if (!album?.tracks) return;
-    debouncedPlaySong(song, album.tracks);
-  }, [album, debouncedPlaySong]);
+    
+    const queueItems = album.tracks.map(s => createQueueItem({
+      id: s.id,
+      title: s.title,
+      artist: s.artist,
+      coverUrl: s.coverUrl,
+      audioUrl: s.audioUrl,
+      duration: s.duration,
+      source: s.source,
+    }));
+    
+    const startIndex = queueItems.findIndex(item => item.id === song.id);
+    playZustandSong(queueItems, startIndex >= 0 ? startIndex : 0);
+  }, [album, playZustandSong]);
 
   const handleMiniPlayerPress = () => navigation.navigate('Player');
   const handleGoBack = () => navigation.goBack();
@@ -299,7 +330,6 @@ export const AlbumDetailScreen = memo(({ route, navigation }: any) => {
         removeClippedSubviews={true}
       />
 
-      {currentSong && <MiniPlayer onPress={handleMiniPlayerPress} />}
     </SafeContainer>
   );
 });

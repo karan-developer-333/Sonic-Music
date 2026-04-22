@@ -3,9 +3,10 @@ import { StyleSheet, Text, View, Image, TouchableOpacity } from 'react-native';
 import { Song } from '../../domain/models/MusicModels';
 import { useAppSelector, useAppDispatch } from '../../application/store/hooks';
 import { SPACING } from '../theme/theme';
-import { Ionicons } from '@expo/vector-icons';
-import { Feather } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import Feather from '@expo/vector-icons/Feather';
 import { addToLiked, removeFromLiked, selectIsSongLiked } from '../../application/store/slices/playlistSlice';
+import { useQueueStore } from '../../application/store/queueStore';
 
 interface SongListItemProps {
   song: Song;
@@ -36,10 +37,11 @@ export const SongListItem: React.FC<SongListItemProps> = ({
 }) => {
   const dispatch = useAppDispatch();
   const colors = useAppSelector(state => state.theme.colors);
-  const { isPlaying: playerIsPlaying, currentSong } = useAppSelector(state => state.player);
+  const currentSongId = useQueueStore(state => state.currentSong?.id);
+  const playerIsPlaying = useQueueStore(state => state.isPlaying);
   const isLiked = useAppSelector(selectIsSongLiked(song.id));
 
-  const isActive = currentSong?.id === song.id;
+  const isActive = currentSongId === song.id;
   const songIsPlaying = isActive && playerIsPlaying;
 
   const formatDuration = (seconds: number): string => {

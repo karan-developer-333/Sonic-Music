@@ -5,19 +5,18 @@ import {
   View,
   ScrollView,
   Image,
-  TouchableOpacity,
+  TouchableOpacity, 
   RefreshControl,
   Dimensions,
 } from 'react-native';
 import { SafeContainer } from '../components/SafeContainer';
 import { SPACING, SIZES } from '../theme/theme';
-import { useAppSelector, useAppDispatch, selectCurrentSong, selectThemeColors } from '../../application/store/hooks';
-import { playSong } from '../../application/store/slices/playerSlice';
+import { useAppSelector, selectThemeColors } from '../../application/store/hooks';
 import { MusicCard } from '../components/MusicCard';
 import { MiniPlayer } from '../components/MiniPlayer';
 import { SongCardSkeleton } from '../components/LoadingState';
-import { Feather } from '@expo/vector-icons';
-import { Ionicons } from '@expo/vector-icons';
+import Feather from '@expo/vector-icons/Feather';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { Song } from '../../domain/models/MusicModels';
 import { MusicApiService } from '../../data/services/MusicApiService';
 
@@ -112,12 +111,15 @@ function useDebounce(callback: () => void, delay: number) {
   return debouncedCallback;
 }
 
+import { useQueue } from '../../application/hooks/useQueue';
+import { createQueueItem } from '../../domain/models/QueueItem';
+
 const HomeScreen = memo(({ navigation }: any) => {
   const [refreshing, setRefreshing] = useState(false);
-  const dispatch = useAppDispatch();
+  const colors = useAppSelector(state => selectThemeColors(state)) as any;
   
-  const currentSong = useAppSelector(selectCurrentSong);
-  const colors = useAppSelector(selectThemeColors);
+  // Zustand State
+  const { currentSong, playSong: playZustandSong } = useQueue();
 
   const { data: homeData, loading, error, refetch, isRefreshing } = useHomeData();
 
@@ -131,8 +133,19 @@ const HomeScreen = memo(({ navigation }: any) => {
   }, [debouncedRefetch]);
 
   const handleSongPress = useCallback((song: Song, queue: Song[]) => {
-    dispatch(playSong({ song, queue }));
-  }, [dispatch]);
+    const queueItems = queue.map(s => createQueueItem({
+      id: s.id,
+      title: s.title,
+      artist: s.artist,
+      coverUrl: s.thumbnail || s.coverUrl,
+      audioUrl: s.streamUrl || s.audioUrl,
+      duration: s.duration,
+      source: s.source,
+    }));
+    
+    const startIndex = queueItems.findIndex(item => item.id === song.id);
+    playZustandSong(queueItems, startIndex >= 0 ? startIndex : 0);
+  }, [playZustandSong]);
 
   const handleMiniPlayerPress = useCallback(() => navigation.navigate('Player'), [navigation]);
   const handleNavigateToExplore = useCallback(() => navigation.navigate('Explore'), [navigation]);
@@ -310,7 +323,6 @@ const HomeScreen = memo(({ navigation }: any) => {
         <View style={{ height: 120 }} />
       </ScrollView>
 
-      {currentSong && <MiniPlayer onPress={handleMiniPlayerPress} />}
     </SafeContainer>
   );
 });

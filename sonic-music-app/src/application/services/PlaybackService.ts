@@ -6,7 +6,6 @@ let audioElement: HTMLAudioElement | null = null;
 let soundInstance: any = null;
 let callbackIdCounter = 0;
 const callbacks = new Map<number, (status: any) => void>();
-const webCallbacks = new Map<number, () => void>();
 
 if (Platform.OS !== 'web') {
   try {
@@ -36,7 +35,6 @@ export class PlaybackService {
 
   removeStatusCallback(callbackId: number): void {
     callbacks.delete(callbackId);
-    webCallbacks.delete(callbackId);
   }
 
   private notifyCallbacks(status: any): void {
@@ -50,21 +48,22 @@ export class PlaybackService {
   }
 
   async loadAndPlay(song: Song): Promise<void> {
-    console.log(`[PlaybackService] Loading song: ${song.title} (${song.audioUrl})`);
-    
     if (Platform.OS === 'web') {
       return this.loadAndPlayWeb(song);
     }
 
+    const TIMEOUT_MS = 10000;
+    
     try {
       if (!Audio) throw new Error('Audio module not loaded');
 
+      const TIMEOUT_MS = 10000;
+
       if (soundInstance) {
-        console.log('[PlaybackService] Unloading previous sound');
         try {
           await soundInstance.unloadAsync();
         } catch (e) {
-          console.log('[PlaybackService] Previous sound already unloaded');
+          // Ignore
         }
         soundInstance = null;
       }
@@ -76,14 +75,31 @@ export class PlaybackService {
         shouldDuckAndroid: true,
         playThroughEarpieceAndroid: false,
       });
+      
+      // Create sound with timeout
+      const createSoundWithTimeout = async () => {
+        return new Promise((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            reject(new Error('Sound creation timeout after 10 seconds'));
+          }, TIMEOUT_MS);
+          
+          Audio.Sound.createAsync(
+            { uri: song.audioUrl },
+            { shouldPlay: true },
+            this.onPlaybackStatusUpdate.bind(this)
+          )
+            .then((result: any) => {
+              clearTimeout(timeout);
+              resolve(result);
+            })
+            .catch((err: any) => {
+              clearTimeout(timeout);
+              reject(err);
+            });
+        });
+      };
 
-      console.log('[PlaybackService] Creating new sound instance');
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: song.audioUrl },
-        { shouldPlay: true },
-        this.onPlaybackStatusUpdate.bind(this)
-      );
-
+      const { sound } = await createSoundWithTimeout() as any;
       soundInstance = sound;
     } catch (error) {
       console.error('[PlaybackService] Error loading sound:', error);

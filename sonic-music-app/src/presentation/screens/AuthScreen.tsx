@@ -8,15 +8,15 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  ActivityIndicator,
+  ActivityIndicator, 
   Alert,
 } from 'react-native';
 import { SafeContainer } from '../components/SafeContainer';
 import { SPACING, SIZES } from '../theme/theme';
 import { useAppDispatch, useAppSelector } from '../../application/store/hooks';
 import { loginUser, registerUser } from '../../application/store/slices/authSlice';
-import { Feather } from '@expo/vector-icons';
-import { Ionicons } from '@expo/vector-icons';
+import Feather from '@expo/vector-icons/Feather';
+import Ionicons from '@expo/vector-icons/Ionicons';
 
 type AuthMode = 'login' | 'register';
 

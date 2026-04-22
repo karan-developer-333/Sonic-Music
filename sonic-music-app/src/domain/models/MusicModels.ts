@@ -5,6 +5,8 @@ export interface Song {
   coverUrl: string;
   audioUrl: string;
   duration: number;
+  thumbnail?: string;
+  streamUrl?: string;
   categoryId?: string;
   source?: 'gaana' | 'saavn';
   favoritedAt?: string;
@@ -19,6 +21,7 @@ export interface Album {
   source?: 'gaana' | 'saavn';
   type: 'album';
   releaseDate?: string;
+  year?: string;
   genre?: string;
   language?: string;
   songCount?: number;

@@ -8,29 +8,27 @@ import {
   Dimensions,
   FlatList,
   ActivityIndicator,
-  ScrollView,
+  ScrollView, 
 } from 'react-native';
 import { SafeContainer } from '../components/SafeContainer';
 import { SPACING, SIZES } from '../theme/theme';
 import {
   useAppSelector,
   useAppDispatch,
-  selectCurrentSong,
   selectThemeColors,
 } from '../../application/store/hooks';
-import { playSong } from '../../application/store/slices/playerSlice';
 import { MiniPlayer } from '../components/MiniPlayer';
-import { Ionicons } from '@expo/vector-icons';
-import { Feather } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import Feather from '@expo/vector-icons/Feather';
 import { Song, Album, Artist } from '../../domain/models/MusicModels';
-import { MusicApiService } from '../../data/services/MusicApiService';
+import { MusicApiService, NormalizedArtistResponse } from '../../data/services/MusicApiService';
 
 const { width } = Dimensions.get('window');
 
 const DEBOUNCE_MS = 300;
 
 interface ArtistData {
-  artist: Artist;
+  artist: NormalizedArtistResponse;
   topSongs: Song[];
   albums: Album[];
 }
@@ -112,15 +110,19 @@ function formatFollowers(count?: number): string {
   return `${count} followers`;
 }
 
+import { useQueue } from '../../application/hooks/useQueue';
+import { createQueueItem } from '../../domain/models/QueueItem';
+
 export const ArtistDetailScreen = memo(({ route, navigation }: any) => {
   const { artistId } = route.params;
   const [artistData, setArtistData] = useState<ArtistData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const dispatch = useAppDispatch();
-  const currentSong = useAppSelector(selectCurrentSong);
-  const colors = useAppSelector(selectThemeColors);
+  const colors = useAppSelector(state => selectThemeColors(state)) as any;
+  
+  // Zustand State
+  const { currentSong, playSong: playZustandSong } = useQueue();
 
   const currentSongId = currentSong?.id;
 
@@ -143,19 +145,54 @@ export const ArtistDetailScreen = memo(({ route, navigation }: any) => {
 
   const handlePlayAll = useCallback(() => {
     if (!artistData?.topSongs?.length) return;
-    dispatch(playSong({ song: artistData.topSongs[0], queue: artistData.topSongs }));
-  }, [artistData, dispatch]);
+    
+    const queueItems = artistData.topSongs.map(s => createQueueItem({
+      id: s.id,
+      title: s.title,
+      artist: s.artist,
+      coverUrl: s.thumbnail || s.coverUrl,
+      audioUrl: s.streamUrl || s.audioUrl,
+      duration: s.duration,
+      source: s.source,
+    }));
+    
+    playZustandSong(queueItems, 0);
+  }, [artistData, playZustandSong]);
 
   const handleShufflePlay = useCallback(() => {
     if (!artistData?.topSongs?.length) return;
-    const shuffled = [...artistData.topSongs].sort(() => Math.random() - 0.5);
-    dispatch(playSong({ song: shuffled[0], queue: shuffled }));
-  }, [artistData, dispatch]);
+    
+    const queueItems = artistData.topSongs.map(s => createQueueItem({
+      id: s.id,
+      title: s.title,
+      artist: s.artist,
+      coverUrl: s.thumbnail || s.coverUrl,
+      audioUrl: s.streamUrl || s.audioUrl,
+      duration: s.duration,
+      source: s.source,
+    }));
+    
+    // Shuffle the queue
+    const shuffled = [...queueItems].sort(() => Math.random() - 0.5);
+    playZustandSong(shuffled, 0);
+  }, [artistData, playZustandSong]);
 
   const handleSongPress = useCallback((song: Song) => {
     if (!artistData?.topSongs) return;
-    dispatch(playSong({ song, queue: artistData.topSongs }));
-  }, [artistData, dispatch]);
+    
+    const queueItems = artistData.topSongs.map(s => createQueueItem({
+      id: s.id,
+      title: s.title,
+      artist: s.artist,
+      coverUrl: s.thumbnail || s.coverUrl,
+      audioUrl: s.streamUrl || s.audioUrl,
+      duration: s.duration,
+      source: s.source,
+    }));
+    
+    const startIndex = queueItems.findIndex(item => item.id === song.id);
+    playZustandSong(queueItems, startIndex >= 0 ? startIndex : 0);
+  }, [artistData, playZustandSong]);
 
   const handleAlbumPress = useCallback((albumId: string) => {
     navigation.navigate('AlbumDetail', { albumId });
@@ -316,7 +353,6 @@ export const ArtistDetailScreen = memo(({ route, navigation }: any) => {
         windowSize={10}
       />
 
-      {currentSong && <MiniPlayer onPress={handleMiniPlayerPress} />}
     </SafeContainer>
   );
 });

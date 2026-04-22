@@ -5,10 +5,16 @@
   "scripts": {
     "start": "expo start",
     "android": "expo run:android",
+    "android:build": "expo run:android --variant release",
+    "prebuild": "expo prebuild --platform android",
+    "build:android": "cd android && ./gradlew assembleRelease",
+    "build:android:debug": "cd android && ./gradlew assembleDebug",
+    "build:android:bundle": "npx react-native bundle --platform android --dev false --entry-file index.ts --bundle-output android/app/src/main/assets/index.android.bundle --assets-dest android/app/src/main/res",
     "ios": "expo run:ios",
     "web": "expo start --web"
   },
   "dependencies": {
+    "@gorhom/bottom-sheet": "^5.2.9",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-navigation/bottom-tabs": "^7.15.9",
     "@react-navigation/native": "^7.2.2",
@@ -24,20 +30,23 @@
     "expo-linking": "~8.0.11",
     "expo-media-library": "~18.2.1",
     "expo-status-bar": "~3.0.9",
+    "expo-updates": "~29.0.16",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-native": "0.81.5",
-    "react-native-drax": "^1.1.0",
+    "react-native-draggable-flatlist": "^4.0.3",
     "react-native-gesture-handler": "~2.28.0",
     "react-native-reanimated": "~4.1.1",
     "react-native-safe-area-context": "~5.6.0",
     "react-native-screens": "~4.16.0",
     "react-native-svg": "15.12.1",
-    "react-native-web": "^0.21.0",
+    "react-native-swipeable-item": "^2.0.9",
     "react-redux": "^9.0.0",
-    "redux-persist": "^6.0.0"
+    "redux-persist": "^6.0.0",
+    "zustand": "^5.0.12"
   },
   "devDependencies": {
+    "@types/invariant": "^2.2.37",
     "@types/react": "~19.1.0",
     "typescript": "~5.9.2"
   },

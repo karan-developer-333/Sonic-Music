@@ -12,13 +12,7 @@ export const clearAuthToken = () => {
 };
 
 const getApiBaseUrl = () => {
-  // For development, use local backend
-  // For production, use deployed backend
-  if (__DEV__) {
-    // Use your local backend URL here
-    return 'https://sonic-music-rose.vercel.app/api';
-  }
-  return 'https://sonic-music-backend.vercel.app/api';
+  return 'https://sonic-music-rose.vercel.app/api';
 };
 
 const apiClient: AxiosInstance = axios.create({

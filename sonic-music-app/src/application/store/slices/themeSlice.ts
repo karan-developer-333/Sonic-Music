@@ -12,6 +12,8 @@ interface ThemeColors {
   card: string;
   glass: string;
   glow: string;
+  skeleton: string;
+  error: string;
 }
 
 interface ThemeState {
@@ -29,6 +31,8 @@ const darkColors: ThemeColors = {
   card: '#111111',
   glass: 'rgba(33, 54, 19, 0.84)',
   glow: 'rgba(163, 255, 18, 0.3)',
+  skeleton: '#1A1A1A',
+  error: '#FF4136',
 };
 
 const lightColors: ThemeColors = {
@@ -41,6 +45,8 @@ const lightColors: ThemeColors = {
   card: '#FFFFFF',
   glass: 'rgba(255, 255, 255, 0.71)',
   glow: 'rgba(124, 179, 5, 0.3)',
+  skeleton: '#E0E0E0',
+  error: '#FF4136',
 };
 
 const initialState: ThemeState = {
@@ -63,5 +69,6 @@ const themeSlice = createSlice({
   },
 });
 
+export type { ThemeColors, ThemeMode };
 export const { toggleTheme, setTheme } = themeSlice.actions;
 export default themeSlice.reducer;

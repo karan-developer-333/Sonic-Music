@@ -2,6 +2,7 @@ import { Platform } from 'react-native';
 import apiClient from './ApiClient';
 import { MediaService } from './MediaService';
 import { PaginatedResponse, Song, Album, Category } from '../../domain/models/MusicModels';
+import { CategoryResponse } from '../../domain/models/ApiModels';
 
 const CACHE_TTL = 5 * 60 * 1000;
 
@@ -45,7 +46,7 @@ interface NormalizedAlbumResponse {
   source?: string;
 }
 
-interface NormalizedArtistResponse {
+export interface NormalizedArtistResponse {
   id: string;
   name: string;
   image?: string;
@@ -54,6 +55,7 @@ interface NormalizedArtistResponse {
   bio?: string;
   followerCount?: number;
   source?: string;
+  isVerified?: boolean;
 }
 
 interface HomeDataResponse {
@@ -497,9 +499,9 @@ export class MusicApiService {
 
     return ApiCache.getOrFetch(cacheKey, async () => {
       try {
-        const genresParam = genres.length > 0 ? `?genres=${encodeURIComponent(genres.join(','))}` : '';
-        const response = await apiClient.get<{ songs: NormalizedSongResponse[] }>(
-          `/recommendations${genresParam}&limit=${limit}`
+      const genresParam = genres.length > 0 ? `?genres=${encodeURIComponent(genres.join(','))}` : '?';
+      const response = await apiClient.get<{ songs: NormalizedSongResponse[] }>(
+        `/recommendations${genresParam}limit=${limit}`
         );
         return response.data.songs.map(this.mapSongResponseToSong);
       } catch {
@@ -579,5 +581,36 @@ export class MusicApiService {
     ApiCache.invalidate('home*');
     ApiCache.invalidate('popular*');
     ApiCache.invalidate('trending*');
+  }
+
+  // --- Categories ---
+  static async getCategories(type?: string): Promise<CategoryResponse[]> {
+    const cacheKey = this.getCacheKey('categories:v1', { type: type || 'all' });
+
+    return ApiCache.getOrFetch(cacheKey, async () => {
+      try {
+        const typeParam = type ? `?type=${encodeURIComponent(type)}` : '';
+        const response = await apiClient.get<{ categories: Array<{ id: string; name: string; imageUrl: string; type: string }> }>(
+          `/categories${typeParam}`
+        );
+        return (response.data.categories || []).map((c) => ({
+          id: c.id,
+          name: c.name,
+          coverUrl: c.imageUrl,
+        }));
+      } catch {
+        return [];
+      }
+    });
+  }
+
+  // --- Liked Songs ---
+  static async getLikedSongs(): Promise<Song[]> {
+    try {
+      const result = await this.getFavorites(1, 50);
+      return result.songs;
+    } catch {
+      return [];
+    }
   }
 }

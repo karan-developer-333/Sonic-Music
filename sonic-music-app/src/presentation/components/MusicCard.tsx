@@ -3,7 +3,7 @@ import { StyleSheet, Text, Image, TouchableOpacity, View } from 'react-native';
 import { Song } from '../../domain/models/MusicModels';
 import { SPACING, SIZES } from '../theme/theme';
 import { useAppSelector } from '../../application/store/hooks';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 
 interface MusicCardProps {
   song: Song;

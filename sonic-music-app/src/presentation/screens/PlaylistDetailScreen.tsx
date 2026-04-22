@@ -11,18 +11,26 @@ import {
 import { SafeContainer } from '../components/SafeContainer';
 import { SPACING, SIZES } from '../theme/theme';
 import { useAppSelector, useAppDispatch } from '../../application/store/hooks';
-import { playSong, toggleShuffle } from '../../application/store/slices/playerSlice';
+import { useQueue } from '../../application/hooks/useQueue';
+import { createQueueItem } from '../../domain/models/QueueItem';
 import { SongListItem } from '../components/SongListItem';
 import { MiniPlayer } from '../components/MiniPlayer';
-import { Ionicons } from '@expo/vector-icons';
-import { Feather } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import Feather from '@expo/vector-icons/Feather';
 
 export const PlaylistDetailScreen = ({ route, navigation }: any) => {
   const { playlistId } = route.params;
   const playlists = useAppSelector(state => state.playlist.playlists);
   const playlist = playlists.find(p => p.id === playlistId);
 
-  const { currentSong, shuffle } = useAppSelector(state => state.player);
+  // Zustand State
+  const { 
+    currentSong, 
+    shuffle, 
+    playSong: playZustandSong, 
+    toggleShuffle: toggleZustandShuffle 
+  } = useQueue();
+  
   const colors = useAppSelector(state => state.theme.colors);
   const dispatch = useAppDispatch();
 
@@ -31,28 +39,60 @@ export const PlaylistDetailScreen = ({ route, navigation }: any) => {
 
   const handlePlaySong = useCallback((song: any) => {
     if (playlist?.songs) {
-      dispatch(playSong({ song, queue: playlist.songs }));
+      const queueItems = playlist.songs.map(s => createQueueItem({
+        id: s.id,
+        title: s.title,
+        artist: s.artist,
+        coverUrl: s.thumbnail || s.coverUrl,
+        audioUrl: s.streamUrl || s.audioUrl,
+        duration: s.duration,
+        source: s.source,
+      }));
+      
+      const startIndex = queueItems.findIndex(item => item.id === song.id);
+      playZustandSong(queueItems, startIndex >= 0 ? startIndex : 0);
     }
-  }, [playlist?.songs, dispatch]);
+  }, [playlist?.songs, playZustandSong]);
 
   const handlePlayAll = useCallback(() => {
     if (playlist?.songs && playlist.songs.length > 0) {
       if (shuffle) {
-        dispatch(toggleShuffle());
+        toggleZustandShuffle();
       }
-      dispatch(playSong({ song: playlist.songs[0], queue: playlist.songs }));
+      
+      const queueItems = playlist.songs.map(s => createQueueItem({
+        id: s.id,
+        title: s.title,
+        artist: s.artist,
+        coverUrl: s.thumbnail || s.coverUrl,
+        audioUrl: s.streamUrl || s.audioUrl,
+        duration: s.duration,
+        source: s.source,
+      }));
+      
+      playZustandSong(queueItems, 0);
     }
-  }, [playlist?.songs, shuffle, dispatch]);
+  }, [playlist?.songs, shuffle, toggleZustandShuffle, playZustandSong]);
 
   const handleShufflePlay = useCallback(() => {
     if (playlist?.songs && playlist.songs.length > 0) {
       if (!shuffle) {
-        dispatch(toggleShuffle());
+        toggleZustandShuffle();
       }
-      const shuffled = [...playlist.songs].sort(() => Math.random() - 0.5);
-      dispatch(playSong({ song: shuffled[0], queue: shuffled }));
+      const queueItems = playlist.songs.map(s => createQueueItem({
+        id: s.id,
+        title: s.title,
+        artist: s.artist,
+        coverUrl: s.thumbnail || s.coverUrl,
+        audioUrl: s.streamUrl || s.audioUrl,
+        duration: s.duration,
+        source: s.source,
+      }));
+      
+      const shuffled = [...queueItems].sort(() => Math.random() - 0.5);
+      playZustandSong(shuffled, 0);
     }
-  }, [playlist?.songs, shuffle, dispatch]);
+  }, [playlist?.songs, shuffle, toggleZustandShuffle, playZustandSong]);
 
   const handleMiniPlayerPress = () => {
     navigation.navigate('Player');
@@ -163,17 +203,15 @@ export const PlaylistDetailScreen = ({ route, navigation }: any) => {
         ) : (
           <FlatList
             data={playlist.songs}
-            keyExtractor={(item) => item.id}
+            keyExtractor={(item: any) => item.id}
             renderItem={renderSongItem}
             scrollEnabled={false}
             contentContainerStyle={styles.songsList}
           />
-        )}
+        )} 
 
         <View style={{ height: 100 }} />
       </ScrollView>
-
-      {currentSong && <MiniPlayer onPress={handleMiniPlayerPress} />}
     </SafeContainer>
   );
 };

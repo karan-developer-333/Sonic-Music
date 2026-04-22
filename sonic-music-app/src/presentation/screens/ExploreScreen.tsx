@@ -3,24 +3,23 @@ import {
   StyleSheet,
   Text,
   View,
-  FlatList,
   Image,
   TouchableOpacity,
-  RefreshControl,
-  ActivityIndicator,
-  Dimensions,
+  FlatList,
   ScrollView,
+  Dimensions,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { SafeContainer } from '../components/SafeContainer';
 import { SPACING, SIZES } from '../theme/theme';
-import { useAppSelector, useAppDispatch } from '../../application/store/hooks';
-import { playSong } from '../../application/store/slices/playerSlice';
+import { useAppSelector } from '../../application/store/hooks';
 import { MiniPlayer } from '../components/MiniPlayer';
 import { CategoryChip } from '../components/CategoryChip';
 import { Song, Album } from '../../domain/models/MusicModels';
 import { MusicApiService } from '../../data/services/MusicApiService';
-import { Ionicons } from '@expo/vector-icons';
-import { Feather } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import Feather from '@expo/vector-icons/Feather';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - SPACING.lg * 3) / 2;
@@ -41,6 +40,9 @@ interface ExploreItem {
   streamUrl?: string;
 }
 
+import { useQueue } from '../../application/hooks/useQueue';
+import { createQueueItem } from '../../domain/models/QueueItem';
+
 export const ExploreScreen = ({ navigation }: any) => {
   const [activeTab, setActiveTab] = useState<'songs' | 'albums'>('songs');
   const [selectedLanguage, setSelectedLanguage] = useState('All');
@@ -52,11 +54,11 @@ export const ExploreScreen = ({ navigation }: any) => {
   const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const { currentSong } = useAppSelector((state: any) => state.player);
+  // Zustand State
+  const { currentSong, playSong: playZustandSong } = useQueue();
   const colors = useAppSelector((state: any) => state.theme.colors);
-  const dispatch = useAppDispatch();
 
-  const flatListRef = useRef<FlatList>(null);
+  const flatListRef = useRef<any>(null);
 
   const fetchItems = useCallback(async (pageNum: number, refresh = false) => {
     try {
@@ -140,18 +142,21 @@ export const ExploreScreen = ({ navigation }: any) => {
   }, [loadingMore, hasMore, loading, page, fetchItems]);
 
   const handleSongPress = useCallback((item: ExploreItem) => {
-    const song: Song = {
-      id: item.id,
-      title: item.title,
-      artist: item.artist,
-      coverUrl: item.coverUrl,
-      audioUrl: item.streamUrl || '',
-      duration: 0,
-      source: 'saavn',
-    };
-    const songItems = items.filter((i: ExploreItem) => i.type === 'song') as ExploreItem[];
-    dispatch(playSong({ song, queue: songItems as any }));
-  }, [dispatch, items]);
+    const songItems = items
+      .filter((i: ExploreItem) => i.type === 'song')
+      .map(s => createQueueItem({
+        id: s.id,
+        title: s.title,
+        artist: s.artist,
+        coverUrl: s.coverUrl,
+        audioUrl: s.streamUrl || '',
+        duration: 0,
+        source: 'saavn',
+      }));
+    
+    const startIndex = songItems.findIndex(s => s.id === item.id);
+    playZustandSong(songItems, startIndex >= 0 ? startIndex : 0);
+  }, [playZustandSong, items]);
 
   const handleAlbumPress = useCallback((item: ExploreItem) => {
     navigation.navigate('AlbumDetail', { albumId: item.id, title: item.title });
@@ -310,7 +315,6 @@ export const ExploreScreen = ({ navigation }: any) => {
         />
       )}
 
-      {currentSong && <MiniPlayer onPress={handleMiniPlayerPress} />}
     </SafeContainer>
   );
 };

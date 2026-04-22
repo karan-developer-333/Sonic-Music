@@ -16,7 +16,7 @@ import { useAppSelector, useAppDispatch } from '../../application/store/hooks';
 import { selectPlaylists } from '../../application/store/slices/playlistSlice';
 import { createPlaylist, addToPlaylist } from '../../application/store/slices/playlistSlice';
 import { SPACING, SIZES } from '../theme/theme';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 
 interface AddToPlaylistModalProps {
   visible: boolean;
@@ -144,9 +144,9 @@ export const AddToPlaylistModal: React.FC<AddToPlaylistModalProps> = ({
               )}
 
               <FlatList
-                data={playlists.filter((p) => p.id !== 'liked')}
-                keyExtractor={(item) => item.id}
-                renderItem={({ item }) => {
+                data={playlists.filter((p: any) => p.id !== 'liked')}
+                keyExtractor={(item: any) => item.id}
+                renderItem={({ item }: { item: any }) => {
                   const isInPlaylist = isSongInPlaylist(item.id);
                   return (
                     <TouchableOpacity

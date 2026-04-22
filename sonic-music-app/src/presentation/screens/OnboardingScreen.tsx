@@ -11,7 +11,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { SafeContainer } from '../components/SafeContainer';
 import { COLORS, SPACING, SIZES } from '../theme/theme';
 import { useAppSelector } from '../../application/store/hooks';
-import { Feather } from '@expo/vector-icons';
+import Feather from '@expo/vector-icons/Feather';
 
 const { width, height } = Dimensions.get('window');
 
@@ -95,7 +95,7 @@ const styles = StyleSheet.create({
     width: 150,
     height: 150,
     borderRadius: 75,
-    opacity: 0.2,
+    opacity: 0.2, 
     zIndex: -1,
   },
   footer: {

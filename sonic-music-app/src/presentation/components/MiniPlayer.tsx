@@ -10,14 +10,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SPACING, SIZES } from '../theme/theme';
 import {
   useAppSelector,
-  useAppDispatch,
-  selectCurrentSong,
-  selectIsPlaying,
   selectThemeColors,
 } from '../../application/store/hooks';
-import { skipNext, togglePlayback } from '../../application/store/slices/playerSlice';
 import { PlaybackService } from '../../application/services/PlaybackService';
-import { Ionicons } from '@expo/vector-icons';
+import { useQueueStore } from '../../application/store/queueStore';
+import { useQueue, useQueueProgress } from '../../application/hooks/useQueue';
+import { createQueueItem } from '../../domain/models/QueueItem';
+import Ionicons from '@expo/vector-icons/Ionicons';
 
 const DEBOUNCE_MS = 300;
 
@@ -46,53 +45,23 @@ interface MiniPlayerProps {
 
 export const MiniPlayer: React.FC<MiniPlayerProps> = memo(({ onPress, onQueuePress }) => {
   const insets = useSafeAreaInsets();
-  const dispatch = useAppDispatch();
+  const colors = useAppSelector(state => selectThemeColors(state)) as any;
   
-  const currentSong = useAppSelector(selectCurrentSong);
-  const isPlaying = useAppSelector(selectIsPlaying);
-  const colors = useAppSelector(selectThemeColors);
-  const [localProgress, setLocalProgress] = useState(0);
+  // Zustand State & Progress
+  const { currentSong, isPlaying, togglePlayback, skipNext } = useQueue();
+  const { progress } = useQueueProgress();
 
   const bottomOffset = SIZES.tabBarHeight + insets.bottom + SPACING.md;
 
-  useEffect(() => {
-    const playbackService = PlaybackService.getInstance();
-    
-    const callbackId = playbackService.setStatusCallback((status) => {
-      if (status.isLoaded) {
-        const progress = status.positionMillis / (status.durationMillis || 1);
-        setLocalProgress(progress);
-      }
-    });
-
-    return () => {
-      playbackService.removeStatusCallback(callbackId);
-    };
-  }, []);
-
-  const debouncedTogglePlayPause = useDebounce(
-    useCallback(() => {
-      dispatch(togglePlayback());
-    }, [dispatch]),
-    DEBOUNCE_MS
-  );
-
-  const debouncedPlayNext = useDebounce(
-    useCallback(() => {
-      dispatch(skipNext());
-    }, [dispatch]),
-    DEBOUNCE_MS
-  );
-
   const handleTogglePlayPause = useCallback((e: any) => {
     e.stopPropagation();
-    debouncedTogglePlayPause();
-  }, [debouncedTogglePlayPause]);
+    togglePlayback();
+  }, [togglePlayback]);
 
   const handlePlayNext = useCallback((e: any) => {
     e.stopPropagation();
-    debouncedPlayNext();
-  }, [debouncedPlayNext]);
+    skipNext();
+  }, [skipNext]);
 
   if (!currentSong) return null;
 
@@ -112,15 +81,15 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = memo(({ onPress, onQueuePre
         <View
           style={[
             styles.progress,
-            { backgroundColor: colors.primary, width: `${localProgress * 100}%` }
+            { backgroundColor: colors.primary, width: `${(progress || 0) * 100}%` }
           ]}
         />
       </View>
 
       <View style={styles.content}>
-        {currentSong.coverUrl ? (
-          <Image
-            source={{ uri: currentSong.coverUrl }}
+      {currentSong.thumbnail ? (
+        <Image
+          source={{ uri: currentSong.thumbnail }}
             style={[styles.cover, { backgroundColor: colors.secondary }]}
           />
         ) : (

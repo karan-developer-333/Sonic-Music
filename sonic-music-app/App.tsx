@@ -5,11 +5,13 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Provider } from 'react-redux';
 import { PersistGate } from 'redux-persist/integration/react';
+import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { store, persistor } from './src/application/store/store';
 import { AppNavigator } from './src/presentation/navigation/AppNavigator';
 import { useAppSelector } from './src/application/store/hooks';
 import { restoreSession } from './src/application/store/slices/authSlice';
 import AuthService from './src/data/services/AuthService';
+import { QueueProvider } from './src/presentation/components/QueueProvider';
 
 function AppContent() {
   const mode = useAppSelector(state => state.theme.mode);
@@ -28,10 +30,12 @@ function AppContent() {
   }, [token, isAuthenticated]);
 
   return (
-    <>
-      <AppNavigator />
-      <StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
-    </>
+    <QueueProvider>
+      <BottomSheetModalProvider>
+        <AppNavigator />
+        <StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
+      </BottomSheetModalProvider>
+    </QueueProvider>
   );
 }
 

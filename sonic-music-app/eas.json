@@ -4,9 +4,15 @@
             "developmentClient": true,
             "distribution": "internal"
         },
-        "preview":{
-            "android":{
-                "buildType":"apk"
+        "preview": {
+            "android": {
+                "buildType": "apk"
+            }
+        },
+        "production": {
+            "distribution": "store",
+            "android": {
+                "buildType": "apk"
             }
         }
     }

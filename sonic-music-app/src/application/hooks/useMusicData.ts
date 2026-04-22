@@ -3,8 +3,8 @@ import { Platform } from 'react-native';
 import { Song } from '../../domain/models/MusicModels';
 import { CategoryResponse } from '../../domain/models/ApiModels';
 import { MusicApiService } from '../../data/services/MusicApiService';
-import { useAppSelector } from '../store/hooks';
-import { selectRecommendations as selectRecommendedGenres } from '../store/slices/historySlice';
+import { useQueue } from '../hooks/useQueue';
+import { selectRecommendations as selectRecommendedGenres } from '../store/queueStore';
 
 const DEBUG = false;
 
@@ -207,8 +207,8 @@ export function useSongSearch(query: string): UseMusicDataResult<Song[]> {
       setError(null);
 
       try {
-        const songs = await MusicApiService.searchSongs(query);
-        setData(songs);
+        const result = await MusicApiService.searchSongs(query);
+        setData(result.items);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Search failed');
       } finally {
@@ -290,7 +290,8 @@ export function useHomeData(): UseHomeDataResult {
 }
 
 export function useRecommendations(limit = 10): UseMusicDataResult<Song[]> {
-  const recommendedGenres = useAppSelector(selectRecommendedGenres(5));
+  const queue = useQueue();
+  const recommendedGenres = queue.getRecommendations();
   const [data, setData] = useState<Song[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -309,7 +310,7 @@ export function useRecommendations(limit = 10): UseMusicDataResult<Song[]> {
       }
       setError(null);
 
-      const genres = recommendedGenres.length > 0 ? recommendedGenres : ['bollywood', 'indian', 'hindustani'];
+      const genres = recommendedGenres && recommendedGenres.length > 0 ? recommendedGenres : ['bollywood', 'indian', 'hindustani'];
       const songs = await MusicApiService.getRecommendations(genres, limit);
       setData(songs);
     } catch (err) {

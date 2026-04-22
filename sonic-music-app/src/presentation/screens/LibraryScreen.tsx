@@ -5,7 +5,7 @@ import {
   View,
   Image,
   TouchableOpacity,
-  Modal,
+  Modal, 
   TextInput,
   Alert,
   ScrollView,
@@ -17,7 +17,6 @@ import {
 import { SafeContainer } from '../components/SafeContainer';
 import { SPACING, SIZES } from '../theme/theme';
 import { useAppSelector, useAppDispatch } from '../../application/store/hooks';
-import { playSong } from '../../application/store/slices/playerSlice';
 import { createPlaylist, deletePlaylist, addToPlaylist, removeFromPlaylist, selectPlaylistById } from '../../application/store/slices/playlistSlice';
 import { MiniPlayer } from '../components/MiniPlayer';
 import { SongListItem } from '../components/SongListItem';
@@ -26,13 +25,16 @@ import { ErrorState, EmptyState } from '../components/ErrorState';
 import { MediaService } from '../../data/services/MediaService';
 import apiClient from '../../data/services/ApiClient';
 import { Song, Album } from '../../domain/models/MusicModels';
-import { Ionicons } from '@expo/vector-icons';
-import { Feather } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import Feather from '@expo/vector-icons/Feather';
 
 const { width } = Dimensions.get('window');
 const ALBUM_CARD_WIDTH = (width - SPACING.lg * 3) / 2;
 
 type LibraryTab = 'playlists' | 'liked' | 'local' | 'saved';
+
+import { useQueue } from '../../application/hooks/useQueue';
+import { createQueueItem } from '../../domain/models/QueueItem';
 
 export const LibraryScreen = ({ navigation }: any) => {
   const [activeTab, setActiveTab] = useState<LibraryTab>('playlists');
@@ -49,8 +51,10 @@ export const LibraryScreen = ({ navigation }: any) => {
   const [savedError, setSavedError] = useState<string | null>(null);
 
   const playlists = useAppSelector(state => state.playlist.playlists);
-  const currentSong = useAppSelector(state => state.player.currentSong);
   const colors = useAppSelector(state => state.theme.colors);
+  
+  // Zustand State
+  const { currentSong, playSong: playZustandSong } = useQueue();
   const dispatch = useAppDispatch();
 
   const requestPermissions = useCallback(async () => {
@@ -144,11 +148,37 @@ export const LibraryScreen = ({ navigation }: any) => {
     ]);
   };
 
-  const handlePlaySong = (song: Song) => {
-    dispatch(playSong({ song, queue: localSongs }));
+  const handlePlaySong = (song: Song, context?: Song[]) => {
+    const queueToUse = context || localSongs;
+    const queueItems = queueToUse.map(s => createQueueItem({
+      id: s.id,
+      title: s.title,
+      artist: s.artist,
+      coverUrl: s.thumbnail || s.coverUrl,
+      audioUrl: s.streamUrl || s.audioUrl,
+      duration: s.duration,
+      source: s.source,
+    }));
+    
+    const startIndex = queueItems.findIndex(item => item.id === song.id);
+    playZustandSong(queueItems, startIndex >= 0 ? startIndex : 0);
   };
 
-  const handlePlayAllLocal = () => localSongs.length > 0 && dispatch(playSong({ song: localSongs[0], queue: localSongs }));
+  const handlePlayAllLocal = () => {
+    if (localSongs.length === 0) return;
+    
+    const queueItems = localSongs.map(s => createQueueItem({
+      id: s.id,
+      title: s.title,
+      artist: s.artist,
+      coverUrl: s.thumbnail || s.coverUrl,
+      audioUrl: s.streamUrl || s.audioUrl,
+      duration: s.duration,
+      source: s.source,
+    }));
+    
+    playZustandSong(queueItems, 0);
+  };
   const handleMiniPlayerPress = () => navigation.navigate('Player');
   const likedPlaylist = playlists.find((p) => p.id === 'liked');
 
@@ -238,7 +268,7 @@ export const LibraryScreen = ({ navigation }: any) => {
       <SongListItem
         key={song.id}
         song={song}
-        onPress={handlePlaySong}
+        onPress={(s) => handlePlaySong(s, songs)}
         showCover
         showActions={false}
         isCurrentSong={currentSong?.id === song.id}
@@ -326,8 +356,6 @@ export const LibraryScreen = ({ navigation }: any) => {
         <View style={styles.content}>{renderContent()}</View>
         <View style={{ height: 100 }} />
       </ScrollView>
-
-      {currentSong && <MiniPlayer onPress={handleMiniPlayerPress} />}
 
       <Modal visible={showCreateModal} transparent animationType="fade" onRequestClose={() => setShowCreateModal(false)}>
         <View style={styles.modalOverlay}>

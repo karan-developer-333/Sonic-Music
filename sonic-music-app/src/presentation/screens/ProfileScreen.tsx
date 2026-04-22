@@ -15,8 +15,8 @@ import { toggleTheme } from '../../application/store/slices/themeSlice';
 import { logout } from '../../application/store/slices/authSlice';
 import { MiniPlayer } from '../components/MiniPlayer';
 import AuthService from '../../data/services/AuthService';
-import { Ionicons } from '@expo/vector-icons';
-import { Feather } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import Feather from '@expo/vector-icons/Feather';
 
 
 interface SettingItemProps {
@@ -51,11 +51,16 @@ const SettingItem: React.FC<SettingItemProps> = ({
   );
 };
 
+import { useQueue } from '../../application/hooks/useQueue';
+
 export const ProfileScreen = ({ navigation }: any) => {
   const [notifications, setNotifications] = useState(true);
   const { mode, colors } = useAppSelector((state: any) => state.theme);
   const { playlists } = useAppSelector((state: any) => state.playlist);
-  const { currentSong } = useAppSelector((state: any) => state.player);
+  
+  // Zustand State
+  const { currentSong } = useQueue();
+  
   const { isAuthenticated, user, isLoading } = useAppSelector((state: any) => state.auth);
   const dispatch = useAppDispatch();
 
@@ -265,8 +270,6 @@ export const ProfileScreen = ({ navigation }: any) => {
 
         <View style={{ height: 100 }} />
       </ScrollView>
-
-      {currentSong && <MiniPlayer onPress={handleMiniPlayerPress} />}
     </SafeContainer>
   );
 };

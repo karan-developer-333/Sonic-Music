@@ -6,7 +6,7 @@ import {
   TextInput,
   ScrollView,
   Image,
-  TouchableOpacity,
+  TouchableOpacity, 
   FlatList,
   Keyboard,
   ActivityIndicator,
@@ -14,13 +14,14 @@ import {
 } from 'react-native';
 import { SafeContainer } from '../components/SafeContainer';
 import { SPACING, SIZES } from '../theme/theme';
-import { useAppSelector, useAppDispatch } from '../../application/store/hooks';
-import { playSong } from '../../application/store/slices/playerSlice';
+import { useAppSelector } from '../../application/store/hooks';
+import { useQueue } from '../../application/hooks/useQueue';
 import { MusicApiService } from '../../data/services/MusicApiService';
 import { MiniPlayer } from '../components/MiniPlayer';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { CategoryChip } from '../components/CategoryChip';
 import { Song, Album } from '../../domain/models/MusicModels';
+import { createQueueItem } from '../../domain/models/QueueItem';
 
 const DEBOUNCE_DELAY = 300;
 const MIN_QUERY_LENGTH = 2;
@@ -48,13 +49,13 @@ export const SearchScreen = ({ navigation }: any) => {
   const [searchLoading, setSearchLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
 
-  const { currentSong } = useAppSelector(state => state.player);
+  // Zustand State
+  const { currentSong, playSong: playZustandSong } = useQueue();
   const colors = useAppSelector(state => state.theme.colors);
-  const dispatch = useAppDispatch();
 
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const inputRef = useRef<TextInput>(null);
+  const inputRef = useRef<any>(null);
 
   const handleSearchChange = useCallback((text: string) => {
     setSearchQuery(text);
@@ -142,8 +143,19 @@ export const SearchScreen = ({ navigation }: any) => {
   }, []);
 
   const handleSongPress = useCallback((song: Song) => {
-    dispatch(playSong({ song, queue: searchResults.songs }));
-  }, [dispatch, searchResults.songs]);
+    const queueItems = searchResults.songs.map(s => createQueueItem({
+      id: s.id,
+      title: s.title,
+      artist: s.artist,
+      coverUrl: s.thumbnail || s.coverUrl,
+      audioUrl: s.streamUrl || s.audioUrl,
+      duration: s.duration,
+      source: s.source,
+    }));
+    
+    const startIndex = queueItems.findIndex(item => item.id === song.id);
+    playZustandSong(queueItems, startIndex >= 0 ? startIndex : 0);
+  }, [playZustandSong, searchResults.songs]);
 
   const handleAlbumPress = useCallback((album: Album) => {
     navigation.navigate('AlbumDetail', { albumId: album.id, title: album.title });
@@ -364,7 +376,6 @@ export const SearchScreen = ({ navigation }: any) => {
         {hasSearched ? renderSearchResults() : renderDefaultContent()}
       </View>
 
-      {currentSong && <MiniPlayer onPress={handleMiniPlayerPress} />}
     </SafeContainer>
   );
 };
